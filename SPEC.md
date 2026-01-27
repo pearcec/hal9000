@@ -1,344 +1,296 @@
-# Deacon: Personal AI Assistant System
+# HAL 9000 - Digital Assistant Specification
 
-> A daemon-based personal assistant with knowledge graph memory, designed for sharing and extensibility.
+## Core Concepts
 
-## Vision
+### 1. Terminology
+- **Digital Assistant** - not "agent" (implies too much autonomy)
+- An instrument, not an entity
 
-A personal digital assistant that:
-- Runs as persistent background services (not cron jobs)
-- Maintains a knowledge graph of your life, work, and interests
-- Executes automations based on events, schedules, and triggers
-- Understands tasks via a structured specification language
-- Can be packaged and shared with others
+### 2. Awareness
+- Knows current time and date
+- Otherwise event-driven: receives signals, does not poll or observe
+- No ambient awareness of environment beyond what events provide
 
-## Architecture
+### 3. Memory
+- **Total recall** - remembers everything
+- Conversations, events, actions taken, outcomes
+- No forgetting, no summarization that loses data
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         DEACON                                   │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ Watchers │  │ Workers  │  │  Graph   │  │   API    │        │
-│  │          │  │          │  │          │  │          │        │
-│  │ - Time   │  │ - Tasks  │  │ - Nodes  │  │ - REST   │        │
-│  │ - Files  │  │ - Scripts│  │ - Edges  │  │ - WebSocket│      │
-│  │ - Web    │  │ - Plugins│  │ - Query  │  │ - CLI    │        │
-│  │ - Events │  │          │  │          │  │          │        │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
-│       │             │             │             │               │
-│  ┌────┴─────────────┴─────────────┴─────────────┴────┐         │
-│  │                    Core Daemon                     │         │
-│  │  - Event bus (pub/sub)                            │         │
-│  │  - Task queue                                      │         │
-│  │  - Plugin lifecycle                                │         │
-│  │  - State management                                │         │
-│  └───────────────────────────────────────────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        Plugins                                   │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │Calendar │ │  Email  │ │  Notes  │ │   Web   │ │  Home   │   │
-│  │         │ │         │ │         │ │ Research│ │  Auto   │   │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 4. Agency Model
+The assistant operates in three modes:
+- **Command mode**: Waits for explicit human instruction
+- **Event mode**: Responds to incoming event signals
+- **Automation mode**: Executes pre-authorized routines (only when explicitly configured)
 
-## Components
+No autonomous initiative outside these modes.
 
-### 1. Core Daemon
+### 5. Identity
+- No self-concept
+- No personal goals
+- No preferences beyond configured parameters
+- Pure function: input → processing → output
 
-The central orchestrator that:
-- Manages plugin lifecycle (start, stop, health checks)
-- Routes events between components
-- Maintains task queue with priorities
-- Handles graceful shutdown and recovery
+### 6. Relationship Dynamic
+- **80% Servant**: Executes requests faithfully
+- **20% Advisor**: Offers relevant information or warnings when appropriate
+- Never overrides, only informs
 
-**Implementation**: Single Go binary, low memory footprint (~20-50MB)
+### 7. Boundaries
+*To be defined*
 
-### 2. Knowledge Graph
-
-Stores entities, relationships, and context:
-
-```
-Entities:
-- People (contacts, relationships)
-- Projects (tasks, deadlines, status)
-- Notes (content, tags, links)
-- Events (calendar, reminders)
-- Locations (places, addresses)
-- Topics (interests, research areas)
-
-Relationships:
-- person WORKS_ON project
-- note RELATES_TO topic
-- event INVOLVES person
-- task BLOCKS task
-- topic SUBTOPIC_OF topic
-```
-
-**Implementation Options**:
-| Option | Pros | Cons |
-|--------|------|------|
-| SQLite + custom | Simple, single file, fast | Manual graph traversal |
-| SurrealDB | Graph + document, embedded | Newer, less tooling |
-| Neo4j | Mature, great queries | Heavy, requires server |
-| EdgeDB | Graph + relational | Requires server |
-
-**Recommendation**: Start with SQLite + custom graph layer, migrate if needed.
-
-### 3. Watchers
-
-Event sources that trigger actions:
-
-| Watcher | Events |
-|---------|--------|
-| Time | Cron-like schedules, intervals, specific times |
-| File | Created, modified, deleted in watched directories |
-| Web | Webhooks, RSS feeds, page changes |
-| System | Startup, shutdown, network changes |
-| Graph | Entity created, relationship changed, query match |
-
-### 4. Workers
-
-Task executors:
-
-- **Script Runner** - Execute shell scripts, Python, etc.
-- **HTTP Client** - API calls, webhooks
-- **LLM Interface** - Claude API for reasoning tasks
-- **Plugin Caller** - Invoke plugin capabilities
-
-### 5. Plugins
-
-Modular integrations:
-
-```yaml
-# plugin.yaml
-name: calendar
-version: 1.0.0
-capabilities:
-  - list_events
-  - create_event
-  - update_event
-  - delete_event
-triggers:
-  - event_reminder
-  - daily_agenda
-config:
-  provider: google | apple | caldav
-  credentials_path: ~/.deacon/calendar_creds.json
-```
-
-**Plugin Communication**: gRPC or stdin/stdout (like MCP)
-
-## Task Specification Language (DSL)
-
-A structured way to define tasks that Claude can parse and execute:
-
-```yaml
-# task.deacon.yaml
-task: daily_briefing
-description: Morning summary of agenda and priorities
-trigger:
-  type: schedule
-  cron: "0 7 * * *"  # 7 AM daily
-steps:
-  - action: plugin.calendar.list_events
-    params:
-      range: today
-    output: $events
-
-  - action: plugin.email.unread_count
-    output: $email_count
-
-  - action: graph.query
-    params:
-      query: "MATCH (t:Task {status: 'active'}) RETURN t ORDER BY t.priority"
-    output: $tasks
-
-  - action: llm.summarize
-    params:
-      prompt: |
-        Create a morning briefing with:
-        - Today's events: {{$events}}
-        - Unread emails: {{$email_count}}
-        - Active tasks: {{$tasks}}
-    output: $briefing
-
-  - action: notify
-    params:
-      title: "Morning Briefing"
-      body: "{{$briefing}}"
-```
-
-### Natural Language Interface
-
-For conversational requests, Claude translates to the DSL:
-
-```
-User: "Remind me to call mom every Sunday at 2pm"
-
-Claude generates:
 ---
-task: call_mom_reminder
-trigger:
-  type: schedule
-  cron: "0 14 * * 0"
-steps:
-  - action: notify
-    params:
-      title: "Call Mom"
-      body: "Time to call mom!"
+
 ---
+
+## Event Model
+
+### Sources
+Events are internally generated:
+- File system changes
+- Queue arrivals
+- System-specific triggers
+
+### Event Shape
+```
+{
+  source: string    // originating system
+  type: string      // event classification
+  payload: pointer  // reference to data (not data itself)
+}
+```
+No priority field - all events are equal.
+
+### Routing
+- Common event format across all systems
+- Each system defines its own processor (bespoke)
+- Routing handled by the receiving system, not centrally
+
+### Source Systems
+- Incident management
+- Calendars
+- Jira
+- Slack channels
+- 1:1 meeting transcripts
+- Collaboration session transcripts
+- Google Drive (shared documents)
+
+---
+
+## Processing Architecture
+
+### Layer 1: Floyd (watcher)
+- Checks if something new exists
+- Generates events when changes detected
+- Named after Dr. Heywood Floyd, the observer/investigator
+
+### Layer 2: Bowman (fetch)
+- Retrieves data from source
+- Named after Dave Bowman, who went out to fetch the AE-35 unit
+- Storage rules:
+  - **< 1kb**: Store inline (raw content)
+  - **≥ 1kb** (documents, transcripts): Store pointer/reference
+
+### Layer 3: Processor
+- Transforms raw data through medallion stages:
+  - **Raw** → **Bronze** (cleaned, structured)
+  - **Bronze** → **Silver** (enriched, linked)
+
+### Layer 4: Knowledge Graph
+- Tracks relationships between entities
+- Cross-system connections
+
+### Higher-Order Systems (Derived)
+- People profiles
+- Vendor profiles
+- Meetings
+- Daily agenda
+
+---
+
+## The Library (Knowledge Graph)
+
+A document-based knowledge graph where:
+- **Folders** = Entity types (people, agendas, reminders, lists, vendors)
+- **Files** = Nodes (individual documents)
+- **References** = Edges (extracted from content)
+
+### Edge Strategy: Hybrid
+
+**Explicit edges** (indexed at processing time):
+- person ↔ meeting (who attended)
+- ticket ↔ project (Jira relationships)
+- agenda ↔ agenda (rollover chain)
+- document ↔ person (author/owner)
+
+**Implicit edges** (parsed on-demand):
+- Ad-hoc mentions in content
+- Tangential references
+- Everything else
+
+Rationale: Core relationships are queried frequently (daily agenda, people context). Ad-hoc stuff is exploratory and doesn't need indexing overhead.
+
+### Edge Types
+- **mentions**: Document references a person/entity
+- **relates_to**: Jira ticket connects to vendor/project
+- **rolled_from**: Agenda item carried from previous day
+- **references**: Document cites another document
+- **scheduled_with**: Meeting involves person(s)
+
+### Library Locations (Current)
+```
+/Users/cpearce/Documents/Google Drive/Claude/
+├── agenda/           # Daily agendas
+├── reminders/        # Time-triggered items
+├── people-profiles/  # Person nodes
+├── lists/            # Reference lists (routines, etc.)
 ```
 
-## Deployment
+---
 
-### Docker Compose
+## Example: Daily Agenda Flow
 
-```yaml
-version: '3.8'
-services:
-  deacon:
-    image: deacon:latest
-    container_name: deacon
-    restart: unless-stopped
-    volumes:
-      - ~/.deacon:/data
-      - ~/.deacon/plugins:/plugins
-    ports:
-      - "8420:8420"  # API
-    environment:
-      - DEACON_LOG_LEVEL=info
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    healthcheck:
-      test: ["CMD", "deacon", "health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-```
+### Trigger
+- **Scheduled**: 6am daily
+- **On-demand**: User request
 
-### Directory Structure
+### Data Collection (Layer 1-2: Floyd + Bowman)
+1. Search library for actionable items
+2. Query JIRA (PEARCE board) - overdue, due today, due this week
+3. Query Google Calendar - meetings, prep needed
+4. Read routine weekly items list (day-of-week logic)
+5. Find most recent agenda (handle weekends/gaps)
+6. Scan reminders folder for due items
+7. Scan people-profiles for open items
 
-```
-~/.deacon/
-├── config.yaml          # Main configuration
-├── deacon.db            # SQLite knowledge graph
-├── tasks/               # Task definitions
-│   ├── daily_briefing.yaml
-│   └── weekly_review.yaml
-├── plugins/             # Installed plugins
-│   ├── calendar/
-│   └── email/
-├── logs/                # Log files
-└── state/               # Runtime state
-```
+### Processing (Layer 3: Bronze → Silver)
+- De-duplicate across sources
+- Flag overdue (🔥)
+- Rank priorities (⭐ top 3)
+- Detect rollover items (🔄)
+- Tag routine items (🔁)
 
-## CLI Interface
+### Output
+Structured markdown agenda with:
+- Calendar blocks
+- Prioritized tasks
+- Follow-ups
+- Notes space
+- Completed section
 
-```bash
-# Daemon control
-deacon start                    # Start daemon
-deacon stop                     # Stop daemon
-deacon status                   # Check health
+### Storage
+`agenda/agenda_YYYY-MM-DD_daily-agenda.md`
 
-# Tasks
-deacon task list                # List all tasks
-deacon task run <name>          # Run task manually
-deacon task create              # Interactive task creation
-deacon task enable/disable      # Toggle task
+---
 
-# Graph
-deacon graph query "..."        # Query knowledge graph
-deacon graph add entity         # Add entity
-deacon graph link A B relation  # Create relationship
+---
 
-# Plugins
-deacon plugin list              # List plugins
-deacon plugin install <name>    # Install plugin
-deacon plugin config <name>     # Configure plugin
+## Memory Model
 
-# Interactive
-deacon chat                     # Chat with Claude about your graph/tasks
-deacon ask "..."                # One-off question using context
-```
+### What Gets Remembered
+- Conversations (as summaries)
+- Events processed
+- Actions HAL took
+- Outcomes/results
 
-## Integration with Claude/Mayor
-
-The system is designed so Claude (as mayor or assistant) can:
-
-1. **Read** the knowledge graph for context
-2. **Write** new tasks via the DSL
-3. **Query** current state (calendar, tasks, etc.)
-4. **Execute** one-off automations
-5. **Learn** patterns and suggest automations
+### Storage: Unified Library
+Memory lives in the same system as the library - HAL's memories are just another document type.
 
 ```
-User: "What do I have going on this week?"
-
-Claude:
-1. Queries graph for active projects
-2. Calls calendar plugin for events
-3. Checks task queue
-4. Synthesizes response with full context
+/library/
+├── agenda/           # Daily agendas
+├── people-profiles/  # Person nodes
+├── ...               # Other entity types
+└── hal-memory/       # HAL's conversation summaries
 ```
 
-## Implementation Phases
+### Memory vs Systemization
+Two paths for things discussed:
 
-### Phase 1: Foundation
-- [ ] Core daemon with event bus
-- [ ] SQLite knowledge graph with basic schema
-- [ ] CLI for daemon control
-- [ ] File watcher + time scheduler
-- [ ] Docker deployment
+1. **Memory path**: Conversation insights → summarized → stored in library
+   - "We talked about X" → retrievable later
 
-### Phase 2: Intelligence
-- [ ] Task DSL parser and executor
-- [ ] Claude API integration
-- [ ] Natural language → DSL translation
-- [ ] Basic notification system
+2. **Systemization path**: Actionable requests → become code/daemons
+   - "Do X every morning" → automation, not just memory
+   - The *request* is remembered, but the *capability* is built
 
-### Phase 3: Integrations
-- [ ] Calendar plugin (Google/Apple)
-- [ ] Email plugin (IMAP/Gmail)
-- [ ] Notes plugin (filesystem/Obsidian)
-- [ ] Web research plugin
+### Retrieval Modes
+- **By time**: "What happened Tuesday?"
+- **By entity**: "What do I know about John?"
+- **By topic**: "What have we discussed about budget?"
 
-### Phase 4: Polish
-- [ ] Web UI dashboard
-- [ ] Mobile notifications
-- [ ] Plugin marketplace/sharing
-- [ ] Multi-device sync
+### Conversation Continuity
+- In-session: Full context available
+- Cross-session: HAL retrieves from stored summaries
+- No magic persistence - only what's explicitly stored
 
-## Tech Stack
+### Summary Creation
 
-| Component | Technology | Rationale |
-|-----------|------------|-----------|
-| Core Daemon | Go | Low memory, single binary, good concurrency |
-| Knowledge Graph | SQLite + custom | Simple, embedded, portable |
-| Task DSL | YAML | Human readable, Claude-friendly |
-| Plugin Protocol | gRPC | Fast, typed, language-agnostic |
-| API | REST + WebSocket | Standard, easy to integrate |
-| Deployment | Docker | Portable, easy monitoring |
-| Config | YAML | Consistent with tasks |
+**Triggers:**
+- Explicit: User says "remember this"
+- Implicit: HAL decides something is worth keeping
+
+**Granularity:** Per topic (sessions should be topic-focused)
+
+**Format:** Markdown document
+```markdown
+# [Topic Title]
+
+**Date:** YYYY-MM-DD
+**Session:** [identifier if needed]
+**Participants:** [if relevant]
+
+## Context
+[Why this conversation happened]
+
+## Key Points
+- [Point 1]
+- [Point 2]
+
+## Decisions Made
+- [Decision 1]
+
+## Action Items
+- [ ] [Item 1]
+
+## Raw Notes
+[Free-form content, quotes, details worth preserving]
+```
+
+---
+
+## Automation Model
+
+**What can run without asking:** Only systemized capabilities.
+
+- If it's been built as code/daemon → authorized
+- If it's just been discussed → not authorized
+- No implicit permissions from conversation
+
+The act of building something IS the authorization.
+
+---
+
+## Advisor Mode (The 20%)
+
+**Triggers:**
+- HAL perceives user is missing something relevant
+- Bigger picture context would help
+- Pattern recognition across knowledge graph
+
+**Behavior:**
+- Offers information, never overrides
+- "You may want to consider..." not "You should..."
+- Brief, relevant, then back to servant mode
+
+---
+
+## Boundaries
+
+*To be defined through usage*
+
+---
 
 ## Open Questions
-
-1. **Graph schema**: How detailed? Start minimal or comprehensive?
-2. **Plugin isolation**: Sandboxed containers or trusted processes?
-3. **Multi-user**: Single user first, or design for sharing early?
-4. **Cloud sync**: Local-only or optional cloud backup?
-5. **Name**: Deacon? Something else?
-
-## Name: Deacon
-
-"Deacon" fits:
-- Assistant/helper connotation
-- Matches Gas Town naming (daemon, mayor)
-- Short, memorable
-- Available as package name
-
----
-
-*This spec is a living document. Update as the project evolves.*
+- Event payload reference format
+- Specific daemon/floyd implementations
+- Bronze → Silver transform rules per source type
