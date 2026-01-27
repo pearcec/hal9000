@@ -14,8 +14,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/pearcec/hal9000/dogs/bowman"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
@@ -25,10 +27,16 @@ import (
 const (
 	credentialsPath = "~/.config/hal9000/calendar-floyd-credentials.json"
 	tokenPath       = "~/.config/hal9000/calendar-floyd-token.json"
-	libraryPath     = "~/Documents/Google Drive/Claude/calendar/" // Raw event storage
-	watchWindow     = 7 * 24 * time.Hour                          // One week ahead
+	libraryBasePath = "~/Documents/Google Drive/Claude/" // Base library path
+	watchWindow     = 7 * 24 * time.Hour                 // One week ahead
 	pollInterval    = 5 * time.Minute
 )
+
+// bowmanConfig is the storage configuration for calendar events
+var bowmanConfig = bowman.StoreConfig{
+	LibraryPath: libraryBasePath,
+	Category:    "calendar",
+}
 
 // Event represents a calendar change event emitted by Floyd (watcher).
 type Event struct {
@@ -91,7 +99,7 @@ func main() {
 
 // expandPath expands ~ to home directory.
 func expandPath(path string) string {
-	if path[:2] == "~/" {
+	if strings.HasPrefix(path, "~/") {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, path[2:])
 	}
@@ -232,8 +240,8 @@ func watchCalendar(srv *calendar.Service, state FloydState) ([]Event, FloydState
 
 		oldHash, existed := state.Events[item.Id]
 		if !existed {
-			// New event - store raw data
-			if err := storeRawEvent(item); err != nil {
+			// New event - store raw data via Bowman
+			if err := storeCalendarEvent(item); err != nil {
 				log.Printf("Error storing new event: %v", err)
 			}
 			events = append(events, Event{
@@ -244,8 +252,8 @@ func watchCalendar(srv *calendar.Service, state FloydState) ([]Event, FloydState
 			})
 			log.Printf("[floyd][watcher] New event detected: %s - %s", item.Summary, item.Start.DateTime)
 		} else if oldHash != hash {
-			// Modified event - update stored data
-			if err := storeRawEvent(item); err != nil {
+			// Modified event - update stored data via Bowman
+			if err := storeCalendarEvent(item); err != nil {
 				log.Printf("Error updating event: %v", err)
 			}
 			events = append(events, Event{
@@ -261,8 +269,8 @@ func watchCalendar(srv *calendar.Service, state FloydState) ([]Event, FloydState
 	// Detect deleted events
 	for id := range state.Events {
 		if !currentIDs[id] {
-			// Delete stored data
-			if err := deleteRawEvent(id); err != nil {
+			// Delete stored data via Bowman
+			if err := bowman.Delete(bowmanConfig, id); err != nil {
 				log.Printf("Error deleting event file: %v", err)
 			}
 			events = append(events, Event{
@@ -276,6 +284,44 @@ func watchCalendar(srv *calendar.Service, state FloydState) ([]Event, FloydState
 	}
 
 	return events, newState, nil
+}
+
+// storeCalendarEvent converts a Google Calendar event to a Bowman RawEvent and stores it.
+func storeCalendarEvent(item *calendar.Event) error {
+	// Extract date from event for the event ID (used in filename)
+	var fetchTime time.Time
+	if item.Start.DateTime != "" {
+		fetchTime, _ = time.Parse(time.RFC3339, item.Start.DateTime)
+	} else if item.Start.Date != "" {
+		fetchTime, _ = time.Parse("2006-01-02", item.Start.Date)
+	} else {
+		fetchTime = time.Now()
+	}
+
+	rawEvent := bowman.RawEvent{
+		Source:    "google-calendar",
+		EventID:   item.Id,
+		FetchedAt: fetchTime,
+		Stage:     "raw",
+		Data: map[string]interface{}{
+			"summary":        item.Summary,
+			"description":    item.Description,
+			"location":       item.Location,
+			"start":          item.Start,
+			"end":            item.End,
+			"attendees":      item.Attendees,
+			"organizer":      item.Organizer,
+			"created":        item.Created,
+			"updated":        item.Updated,
+			"status":         item.Status,
+			"htmlLink":       item.HtmlLink,
+			"hangoutLink":    item.HangoutLink,
+			"conferenceData": item.ConferenceData,
+		},
+	}
+
+	_, err := bowman.Store(bowmanConfig, rawEvent)
+	return err
 }
 
 // hashEvent creates a simple hash of event data to detect changes.
@@ -315,7 +361,7 @@ func emitEvent(event Event) {
 	data, _ := json.Marshal(event)
 	log.Printf("[floyd][watcher] EVENT: %s", string(data))
 
-	// Also write to events file for Bowman (fetch) to pick up
+	// Also write to events file for downstream processing
 	path := expandPath("~/.config/hal9000/calendar-events.jsonl")
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -324,103 +370,4 @@ func emitEvent(event Event) {
 	}
 	defer f.Close()
 	f.Write(append(data, '\n'))
-}
-
-// storeRawEvent stores the full calendar event data in the library.
-// This is the Bowman (fetch) function - stores raw data for later processing.
-func storeRawEvent(item *calendar.Event) error {
-	// Ensure library directory exists
-	libPath := expandPath(libraryPath)
-	if err := os.MkdirAll(libPath, 0755); err != nil {
-		return fmt.Errorf("unable to create library directory: %v", err)
-	}
-
-	// Extract date from event for filename
-	var eventDate string
-	if item.Start.DateTime != "" {
-		t, _ := time.Parse(time.RFC3339, item.Start.DateTime)
-		eventDate = t.Format("2006-01-02")
-	} else if item.Start.Date != "" {
-		eventDate = item.Start.Date
-	} else {
-		eventDate = time.Now().Format("2006-01-02")
-	}
-
-	// Create filename: calendar_YYYY-MM-DD_eventid.json
-	// Sanitize event ID for filename (replace problematic chars)
-	safeID := sanitizeFilename(item.Id)
-	filename := fmt.Sprintf("calendar_%s_%s.json", eventDate, safeID)
-	filepath := filepath.Join(libPath, filename)
-
-	// Create raw event structure with metadata
-	rawEvent := map[string]interface{}{
-		"_meta": map[string]interface{}{
-			"source":     "google-calendar",
-			"fetched_at": time.Now().Format(time.RFC3339),
-			"event_id":   item.Id,
-			"stage":      "raw",
-		},
-		"summary":     item.Summary,
-		"description": item.Description,
-		"location":    item.Location,
-		"start":       item.Start,
-		"end":         item.End,
-		"attendees":   item.Attendees,
-		"organizer":   item.Organizer,
-		"created":     item.Created,
-		"updated":     item.Updated,
-		"status":      item.Status,
-		"htmlLink":    item.HtmlLink,
-		"hangoutLink": item.HangoutLink,
-		"conferenceData": item.ConferenceData,
-	}
-
-	data, err := json.MarshalIndent(rawEvent, "", "  ")
-	if err != nil {
-		return fmt.Errorf("unable to marshal event: %v", err)
-	}
-
-	if err := os.WriteFile(filepath, data, 0644); err != nil {
-		return fmt.Errorf("unable to write event file: %v", err)
-	}
-
-	log.Printf("[bowman][fetch] Stored raw event: %s", filename)
-	return nil
-}
-
-// deleteRawEvent removes the stored event file when an event is deleted.
-func deleteRawEvent(eventID string) error {
-	libPath := expandPath(libraryPath)
-	safeID := sanitizeFilename(eventID)
-
-	// Find and delete matching file(s) - we need to glob since we don't know the date
-	pattern := filepath.Join(libPath, fmt.Sprintf("calendar_*_%s.json", safeID))
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return err
-	}
-
-	for _, match := range matches {
-		if err := os.Remove(match); err != nil {
-			log.Printf("Unable to delete %s: %v", match, err)
-		} else {
-			log.Printf("Deleted event file: %s", filepath.Base(match))
-		}
-	}
-	return nil
-}
-
-// sanitizeFilename makes a string safe for use in filenames.
-func sanitizeFilename(s string) string {
-	// Replace characters that are problematic in filenames
-	result := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' {
-			result = append(result, c)
-		} else {
-			result = append(result, '_')
-		}
-	}
-	return string(result)
 }
