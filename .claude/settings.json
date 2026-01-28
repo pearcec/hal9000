@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '\\n[HAL 9000 ONLINE]\\n' && hal9000 services status --quiet 2>/dev/null || echo '[NOTICE] Services not running. Run: hal9000 services start'"
+            "command": "echo '\\n[HAL 9000 ONLINE]\\n' && hal9000 services status --quiet 2>/dev/null || echo '[NOTICE] Services not running. Run: hal9000 services diagnose'"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hal9000 services status --check-only 2>/dev/null || echo '⚠️ [HAL ALERT] Service failure detected. Run: hal9000 services status'"
+            "command": "hal9000 services status --check-only 2>/dev/null || echo '⚠️ [HAL ALERT] Service failure detected. Run: hal9000 services diagnose'"
           }
         ]
       },

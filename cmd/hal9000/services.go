@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	servicesQuiet    bool
-	servicesJSONOut  bool
-	servicesLogTail  int
+	servicesQuiet     bool
+	servicesCheckOnly bool
+	servicesJSONOut   bool
+	servicesLogTail   int
 )
 
 // ServiceConfig represents a single service configuration
@@ -133,9 +134,30 @@ Examples:
 	RunE: runServicesLogs,
 }
 
+var servicesDiagnoseCmd = &cobra.Command{
+	Use:   "diagnose [service]",
+	Short: "Diagnose service issues",
+	Long: `Diagnose problems with HAL 9000 services.
+
+Without arguments, diagnoses all services.
+With a service name, focuses on that specific service.
+
+Checks performed:
+  - Service configuration validity
+  - Executable existence and permissions
+  - Process status and PID files
+  - Recent log entries for errors
+
+Examples:
+  hal9000 services diagnose              # Diagnose all services
+  hal9000 services diagnose floyd-calendar`,
+	RunE: runServicesDiagnose,
+}
+
 func init() {
 	// Status flags
 	servicesStatusCmd.Flags().BoolVarP(&servicesQuiet, "quiet", "q", false, "Quiet mode (exit 0 if healthy, 1 if problems)")
+	servicesStatusCmd.Flags().BoolVar(&servicesCheckOnly, "check-only", false, "Silent check (exit 0 if healthy, 1 if problems, no output)")
 	servicesStatusCmd.Flags().BoolVar(&servicesJSONOut, "json", false, "Output as JSON")
 
 	// Logs flags
@@ -147,6 +169,7 @@ func init() {
 	servicesCmd.AddCommand(servicesStatusCmd)
 	servicesCmd.AddCommand(servicesRestartCmd)
 	servicesCmd.AddCommand(servicesLogsCmd)
+	servicesCmd.AddCommand(servicesDiagnoseCmd)
 
 	// Register with root command
 	rootCmd.AddCommand(servicesCmd)
@@ -511,7 +534,15 @@ func runServicesStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Quiet mode: just exit code
+	// Check-only mode: silent, just exit code
+	if servicesCheckOnly {
+		if len(problems) > 0 {
+			os.Exit(1)
+		}
+		return nil
+	}
+
+	// Quiet mode: brief output with exit code
 	if servicesQuiet {
 		if len(problems) > 0 {
 			fmt.Printf("Services not running: %s\n", strings.Join(problems, ", "))
@@ -646,4 +677,195 @@ func tailFile(path string, n int) error {
 	}
 
 	return nil
+}
+
+func runServicesDiagnose(cmd *cobra.Command, args []string) error {
+	config, err := loadServicesConfig()
+	if err != nil {
+		fmt.Printf("\033[31mConfig Error:\033[0m %v\n", err)
+		fmt.Println("\nTo fix: Check ~/.config/hal9000/services.yaml syntax")
+		return nil
+	}
+
+	var services []string
+	if len(args) > 0 {
+		services = args
+	} else {
+		for _, svc := range config.Services {
+			if svc.Enabled {
+				services = append(services, svc.Name)
+			}
+		}
+	}
+
+	fmt.Println("HAL 9000 Service Diagnostics")
+	fmt.Println("============================\n")
+
+	hasProblems := false
+
+	for _, name := range services {
+		svc := findService(config, name)
+		if svc == nil {
+			fmt.Printf("\033[31m[%s]\033[0m Unknown service\n", name)
+			fmt.Printf("  Available services: ")
+			for i, s := range config.Services {
+				if i > 0 {
+					fmt.Print(", ")
+				}
+				fmt.Print(s.Name)
+			}
+			fmt.Println()
+			hasProblems = true
+			continue
+		}
+
+		fmt.Printf("[%s]\n", name)
+
+		// Check if enabled
+		if !svc.Enabled {
+			fmt.Printf("  Status: \033[90mdisabled\033[0m\n")
+			fmt.Printf("  To enable: Edit ~/.config/hal9000/services.yaml\n\n")
+			continue
+		}
+
+		// Check executable
+		execPath := svc.Command
+		if !filepath.IsAbs(execPath) {
+			// Try to find in PATH
+			foundPath, err := exec.LookPath(execPath)
+			if err != nil {
+				fmt.Printf("  Executable: \033[31mNOT FOUND\033[0m (%s)\n", execPath)
+				fmt.Printf("  Problem: Command not in PATH\n")
+				fmt.Printf("  To fix: Either:\n")
+				fmt.Printf("    1. Add directory containing '%s' to PATH\n", execPath)
+				fmt.Printf("    2. Use absolute path in ~/.config/hal9000/services.yaml\n")
+				hasProblems = true
+				fmt.Println()
+				continue
+			}
+			execPath = foundPath
+		}
+
+		// Check if file exists
+		info, err := os.Stat(execPath)
+		if os.IsNotExist(err) {
+			fmt.Printf("  Executable: \033[31mNOT FOUND\033[0m (%s)\n", execPath)
+			fmt.Printf("  Problem: File does not exist\n")
+			fmt.Printf("  To fix: Update command path in ~/.config/hal9000/services.yaml\n")
+			hasProblems = true
+			fmt.Println()
+			continue
+		} else if err != nil {
+			fmt.Printf("  Executable: \033[31mERROR\033[0m %v\n", err)
+			hasProblems = true
+			fmt.Println()
+			continue
+		}
+
+		// Check if executable
+		if info.Mode()&0111 == 0 {
+			fmt.Printf("  Executable: \033[31mNOT EXECUTABLE\033[0m (%s)\n", execPath)
+			fmt.Printf("  Problem: File is not executable\n")
+			fmt.Printf("  To fix: chmod +x %s\n", execPath)
+			hasProblems = true
+			fmt.Println()
+			continue
+		}
+
+		fmt.Printf("  Executable: \033[32mOK\033[0m (%s)\n", execPath)
+
+		// Check process status
+		running, pid := isServiceRunning(name)
+		if running {
+			uptime := getServiceUptime(name)
+			fmt.Printf("  Process: \033[32mrunning\033[0m (PID %d, uptime %s)\n", pid, uptime)
+		} else {
+			fmt.Printf("  Process: \033[31mnot running\033[0m\n")
+			hasProblems = true
+
+			// Check for stale PID file
+			pidPath := getServicePIDPath(name)
+			if _, err := os.Stat(pidPath); err == nil {
+				fmt.Printf("  Warning: Stale PID file exists at %s\n", pidPath)
+				fmt.Printf("  To fix: rm %s\n", pidPath)
+			}
+		}
+
+		// Check logs for recent errors
+		logPath := getServiceLogPath(name)
+		if _, err := os.Stat(logPath); err == nil {
+			fmt.Printf("  Log file: %s\n", logPath)
+
+			// Read last few lines looking for errors
+			if lastLines, err := readLastLines(logPath, 20); err == nil {
+				var errorLines []string
+				for _, line := range lastLines {
+					lineLower := strings.ToLower(line)
+					if strings.Contains(lineLower, "error") ||
+						strings.Contains(lineLower, "fatal") ||
+						strings.Contains(lineLower, "panic") ||
+						strings.Contains(lineLower, "failed") {
+						errorLines = append(errorLines, line)
+					}
+				}
+				if len(errorLines) > 0 {
+					fmt.Printf("  Recent errors in log:\n")
+					// Show at most 5 error lines
+					start := 0
+					if len(errorLines) > 5 {
+						start = len(errorLines) - 5
+					}
+					for _, line := range errorLines[start:] {
+						// Truncate long lines
+						if len(line) > 100 {
+							line = line[:97] + "..."
+						}
+						fmt.Printf("    \033[33m%s\033[0m\n", line)
+					}
+				}
+			}
+		} else {
+			fmt.Printf("  Log file: none (service may not have run yet)\n")
+		}
+
+		fmt.Println()
+	}
+
+	// Summary and recommendations
+	if hasProblems {
+		fmt.Println("Recommendations")
+		fmt.Println("---------------")
+		fmt.Println("1. Fix any executable or configuration issues above")
+		fmt.Println("2. Start services: hal9000 services start")
+		fmt.Println("3. Check logs: hal9000 services logs")
+	} else {
+		fmt.Println("\033[32mAll services healthy.\033[0m")
+	}
+
+	return nil
+}
+
+func readLastLines(path string, n int) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	start := len(lines) - n
+	if start < 0 {
+		start = 0
+	}
+
+	return lines[start:], nil
 }

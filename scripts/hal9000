@@ -30,14 +30,26 @@ else
 fi
 
 # Check services status (gracefully handle missing binary)
-SERVICES_MSG=""
+# Look for hal9000 binary in common locations
+HAL_BIN=""
 if command -v hal9000 >/dev/null 2>&1; then
-    if SERVICES_OUTPUT=$(hal9000 services status --quiet 2>&1); then
+    HAL_BIN="hal9000"
+elif [ -x "$HOME/bin/hal9000" ]; then
+    HAL_BIN="$HOME/bin/hal9000"
+elif [ -x "/usr/local/bin/hal9000" ]; then
+    HAL_BIN="/usr/local/bin/hal9000"
+fi
+
+SERVICES_MSG=""
+if [ -n "$HAL_BIN" ]; then
+    if SERVICES_OUTPUT=$("$HAL_BIN" services status --quiet 2>&1); then
         SERVICES_MSG="All systems operational."
     else
         # Output contains "Services not running: scheduler, floyd-calendar"
-        SERVICES_MSG="Some services need attention: ${SERVICES_OUTPUT}"
+        SERVICES_MSG="WARNING: ${SERVICES_OUTPUT}. Run: hal9000 services diagnose"
     fi
+else
+    SERVICES_MSG="WARNING: hal9000 CLI not found in PATH. Service monitoring disabled."
 fi
 
 # If no arguments, start with greeting prompt
