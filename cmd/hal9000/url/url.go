@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pearcec/hal9000/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -140,8 +141,7 @@ func loadPreferences() (*URLPreferences, error) {
 func getPreferencesPath() string {
 	base := libraryPath
 	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, "Documents", "Google Drive", "Claude")
+		base = config.GetLibraryPath()
 	}
 	return filepath.Join(base, "preferences", "url.md")
 }
@@ -149,8 +149,7 @@ func getPreferencesPath() string {
 func getLibraryPath() string {
 	base := libraryPath
 	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, "Documents", "Google Drive", "Claude")
+		base = config.GetLibraryPath()
 	}
 	return filepath.Join(base, "url_library")
 }
