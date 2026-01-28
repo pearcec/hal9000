@@ -17,10 +17,13 @@ Raw → Bronze → Silver
 ## API
 
 ```go
-import "github.com/pearcec/hal9000/discovery/processor"
+import (
+    "github.com/pearcec/hal9000/discovery/config"
+    "github.com/pearcec/hal9000/discovery/processor"
+)
 
-config := processor.ProcessConfig{
-    LibraryPath: "~/Documents/Google Drive/Claude/",
+cfg := processor.ProcessConfig{
+    LibraryPath: config.GetLibraryPath(),
 }
 
 // Transform raw → bronze

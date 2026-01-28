@@ -15,11 +15,14 @@ Bowman handles data retrieval and storage. When Floyd watchers detect changes, t
 ## API
 
 ```go
-import "github.com/pearcec/hal9000/discovery/bowman"
+import (
+    "github.com/pearcec/hal9000/discovery/bowman"
+    "github.com/pearcec/hal9000/discovery/config"
+)
 
-// Configure storage location
-config := bowman.StoreConfig{
-    LibraryPath: "~/Documents/Google Drive/Claude/",
+// Configure storage location using config
+cfg := bowman.StoreConfig{
+    LibraryPath: config.GetLibraryPath(),
     Category:    "calendar",
 }
 

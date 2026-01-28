@@ -15,10 +15,13 @@ The LMC is a document-based knowledge graph where:
 ## API
 
 ```go
-import "github.com/pearcec/hal9000/discovery/lmc"
+import (
+    "github.com/pearcec/hal9000/discovery/config"
+    "github.com/pearcec/hal9000/discovery/lmc"
+)
 
-// Initialize
-lib, err := lmc.New("~/Documents/Google Drive/Claude/")
+// Initialize using config-based path
+lib, err := lmc.New(config.GetLibraryPath())
 
 // Store an entity
 entity, err := lib.Store("people", "john@example.com", content, links)
@@ -57,7 +60,7 @@ types, err := lib.ListTypes()
 ## Storage Structure
 
 ```
-~/Documents/Google Drive/Claude/
+./library/    # Default, or path from ~/.config/hal9000/config.yaml
 ├── people/
 │   └── john_example_com.json
 ├── calendar/
@@ -71,7 +74,7 @@ types, err := lib.ListTypes()
 ## Log Format
 
 ```
-[lmc] Initialized at /Users/you/Documents/Google Drive/Claude/
+[lmc] Initialized at /path/to/library/
 [lmc] Stored entity: people/john@example.com
 [lmc] Rebuilding edge index...
 ```

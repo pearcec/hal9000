@@ -9,12 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pearcec/hal9000/internal/config"
 	"github.com/spf13/cobra"
 )
 
-const (
-	libraryCalendarPath = "~/Documents/Google Drive/Claude/calendar"
-)
+// getLibraryCalendarPath returns the path to the calendar directory in the library.
+func getLibraryCalendarPath() string {
+	return filepath.Join(config.GetLibraryPath(), "calendar")
+}
 
 // CalendarEvent represents a calendar event from the library.
 type CalendarEvent struct {
@@ -179,7 +181,7 @@ func displayEvents(startDate, endDate time.Time) error {
 }
 
 func loadCalendarEvents(startDate, endDate time.Time) ([]CalendarEvent, error) {
-	calPath := expandPath(libraryCalendarPath)
+	calPath := getLibraryCalendarPath()
 
 	// Check if directory exists
 	if _, err := os.Stat(calPath); os.IsNotExist(err) {

@@ -18,13 +18,13 @@ import (
 	"time"
 
 	"github.com/pearcec/hal9000/discovery/bowman"
+	"github.com/pearcec/hal9000/discovery/config"
 )
 
 const (
 	configPath   = "~/.config/hal9000/slack-floyd-config.json"
 	statePath    = "~/.config/hal9000/slack-floyd-state.json"
 	eventsPath   = "~/.config/hal9000/slack-events.jsonl"
-	libraryPath  = "~/Documents/Google Drive/Claude/"
 	pollInterval = 2 * time.Minute // Slack rate limits are stricter
 )
 
@@ -66,9 +66,12 @@ type SlackMessage struct {
 	Channel   string `json:"channel,omitempty"`
 }
 
-var bowmanConfig = bowman.StoreConfig{
-	LibraryPath: libraryPath,
-	Category:    "slack",
+// getBowmanConfig returns the storage configuration for Slack messages.
+func getBowmanConfig() bowman.StoreConfig {
+	return bowman.StoreConfig{
+		LibraryPath: config.GetLibraryPath(),
+		Category:    "slack",
+	}
 }
 
 func main() {
@@ -257,7 +260,7 @@ func storeSlackMessage(msg SlackMessage) error {
 		},
 	}
 
-	_, err := bowman.Store(bowmanConfig, rawEvent)
+	_, err := bowman.Store(getBowmanConfig(), rawEvent)
 	return err
 }
 

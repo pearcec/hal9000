@@ -31,7 +31,7 @@ type RawEvent struct {
 
 // StoreConfig configures where Bowman stores data.
 type StoreConfig struct {
-	LibraryPath string // Base path for the library (e.g., ~/Documents/Google Drive/Claude/)
+	LibraryPath string // Base path for the library (from config.GetLibraryPath())
 	Category    string // Subfolder category (e.g., "calendar", "jira", "slack")
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pearcec/hal9000/discovery/lmc"
+	"github.com/pearcec/hal9000/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -230,7 +231,7 @@ func getLibrary() (*lmc.Library, error) {
 
 	path := libraryPath
 	if path == "" {
-		path = "~/Documents/Google Drive/Claude/"
+		path = config.GetLibraryPath()
 	}
 	return lmc.New(path)
 }

@@ -18,13 +18,13 @@ import (
 	"time"
 
 	"github.com/pearcec/hal9000/discovery/bowman"
+	"github.com/pearcec/hal9000/discovery/config"
 )
 
 const (
 	configPath   = "~/.config/hal9000/jira-floyd-config.json"
 	statePath    = "~/.config/hal9000/jira-floyd-state.json"
 	eventsPath   = "~/.config/hal9000/jira-events.jsonl"
-	libraryPath  = "~/Documents/Google Drive/Claude/"
 	pollInterval = 5 * time.Minute
 )
 
@@ -64,9 +64,12 @@ type JIRAIssue struct {
 	Fields map[string]interface{} `json:"fields"`
 }
 
-var bowmanConfig = bowman.StoreConfig{
-	LibraryPath: libraryPath,
-	Category:    "jira",
+// getBowmanConfig returns the storage configuration for JIRA issues.
+func getBowmanConfig() bowman.StoreConfig {
+	return bowman.StoreConfig{
+		LibraryPath: config.GetLibraryPath(),
+		Category:    "jira",
+	}
 }
 
 func main() {
@@ -256,7 +259,7 @@ func storeJIRAIssue(issue JIRAIssue) error {
 		},
 	}
 
-	_, err := bowman.Store(bowmanConfig, rawEvent)
+	_, err := bowman.Store(getBowmanConfig(), rawEvent)
 	return err
 }
 

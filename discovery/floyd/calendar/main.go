@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/pearcec/hal9000/discovery/bowman"
+	"github.com/pearcec/hal9000/discovery/config"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
@@ -27,15 +28,16 @@ import (
 const (
 	credentialsPath = "~/.config/hal9000/calendar-floyd-credentials.json"
 	tokenPath       = "~/.config/hal9000/calendar-floyd-token.json"
-	libraryBasePath = "~/Documents/Google Drive/Claude/" // Base library path
-	watchWindow     = 7 * 24 * time.Hour                 // One week ahead
+	watchWindow     = 7 * 24 * time.Hour // One week ahead
 	pollInterval    = 5 * time.Minute
 )
 
-// bowmanConfig is the storage configuration for calendar events
-var bowmanConfig = bowman.StoreConfig{
-	LibraryPath: libraryBasePath,
-	Category:    "calendar",
+// getBowmanConfig returns the storage configuration for calendar events.
+func getBowmanConfig() bowman.StoreConfig {
+	return bowman.StoreConfig{
+		LibraryPath: config.GetLibraryPath(),
+		Category:    "calendar",
+	}
 }
 
 // Event represents a calendar change event emitted by Floyd (watcher).
@@ -270,7 +272,7 @@ func watchCalendar(srv *calendar.Service, state FloydState) ([]Event, FloydState
 	for id := range state.Events {
 		if !currentIDs[id] {
 			// Delete stored data via Bowman
-			if err := bowman.Delete(bowmanConfig, id); err != nil {
+			if err := bowman.Delete(getBowmanConfig(), id); err != nil {
 				log.Printf("Error deleting event file: %v", err)
 			}
 			events = append(events, Event{
@@ -320,7 +322,7 @@ func storeCalendarEvent(item *calendar.Event) error {
 		},
 	}
 
-	_, err := bowman.Store(bowmanConfig, rawEvent)
+	_, err := bowman.Store(getBowmanConfig(), rawEvent)
 	return err
 }
 

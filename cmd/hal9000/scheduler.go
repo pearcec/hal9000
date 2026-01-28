@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pearcec/hal9000/internal/config"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 )
@@ -189,7 +190,7 @@ func getLibraryPath() string {
 	if schedulerLibPath != "" {
 		return expandPath(schedulerLibPath)
 	}
-	return expandPath("~/Documents/Google Drive/Claude")
+	return config.GetLibraryPath()
 }
 
 func getPIDPath() string {
