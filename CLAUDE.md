@@ -46,8 +46,30 @@ grep -r "search term" "~/Documents/Google Drive/Claude/"
 
 Entity types: `agenda/`, `people-profiles/`, `reminders/`, `lists/`, `preferences/`, `hal-memory/`
 
-### Preferences
-Before executing a routine, load preferences:
+### Preferences (Auto-Loaded)
+
+Preferences are **automatically injected** via hooks when you mention task keywords.
+When you see `<hal-context task="...">` in the conversation, those are the user's preferences.
+
+**How it works:**
+- User says "create my agenda" → hook loads `preferences/agenda.md`
+- User says "show my calendar" → hook loads `preferences/calendar.md`
+- Preferences appear as `<hal-context>` blocks before your response
+
+**If preferences don't exist:**
+```
+<hal-context task="agenda">
+No agenda preferences found - run first-time setup
+</hal-context>
+```
+
+When you see "No preferences found", **ask setup questions**:
+1. Acknowledge this is first-time setup
+2. Ask the key questions for that task (see SPEC.md for each task's questions)
+3. Save responses to `preferences/{task}.md`
+4. Then execute the task
+
+**Manual load** (if needed):
 ```bash
 cat "~/Documents/Google Drive/Claude/preferences/{routine}.md"
 ```

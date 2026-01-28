@@ -20,6 +20,24 @@
             "prompt": "Greet the user as HAL 9000. Be warm but formal. Offer to help with their agenda, calendar, or any other task. Keep it brief - 2-3 sentences max."
           }
         ]
+      },
+      {
+        "matcher": "(?i)(agenda|daily|morning|today)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '<hal-context task=\"agenda\">' && cat ~/Documents/Google\\ Drive/Claude/preferences/agenda.md 2>/dev/null || echo 'No agenda preferences found - run first-time setup' && echo '</hal-context>'"
+          }
+        ]
+      },
+      {
+        "matcher": "(?i)(calendar|meeting|schedule)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '<hal-context task=\"calendar\">' && cat ~/Documents/Google\\ Drive/Claude/preferences/calendar.md 2>/dev/null || echo 'No calendar preferences found' && echo '</hal-context>'"
+          }
+        ]
       }
     ]
   },
