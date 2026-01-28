@@ -1,48 +1,47 @@
 #!/bin/bash
-# HAL 9000 Eye ASCII Art
-# Displays HAL's iconic red eye on startup
+# HAL 9000 Panel ASCII Art
+# Generated from the official HAL 9000 panel image using jp2a
+# Displays the full panel with eye on startup
 
-# ANSI color codes
-RED='\033[31m'
-BRIGHT_RED='\033[91m'
-DARK_GRAY='\033[90m'
-RESET='\033[0m'
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+ANSI_FILE="$SCRIPT_DIR/hal9000-panel.ansi"
 
-# Check if terminal supports colors
-if [[ -t 1 ]] && [[ "${TERM:-dumb}" != "dumb" ]]; then
-    HAS_COLOR=true
+# Check if terminal supports 24-bit color and ANSI file exists
+if [[ -t 1 ]] && [[ -f "$ANSI_FILE" ]]; then
+    cat "$ANSI_FILE"
 else
-    HAS_COLOR=false
+    # Simplified ASCII version for non-color terminals or missing file
+    cat << 'EOF'
+ cOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOl
+'                                        .
+'  .cccccccccllllllllc,.''..'.''..'..... .
+'  .ooooooooxkxxxx xo,'c::c:c c:c..... . .
+'  .oooooooxdxxxdxd,.; ',,',;',',....... .
+'   ..................  ..............   .
+'                                        .
+'          ..  ..  ..                    .
+'       . .;coooooool c,.                .
+'     . .;:;'.........';; ,.             .
+'    . .: . ..'''''' . .,,,.             .
+'   . ',.  .:;,. ..,'    .,,.            .
+'  . ., .';.   .........  .,'.           .
+'  . ..;;...'...::::...'. .;'.           .
+'  . .,. ....  ;xd;  .... .;.            .
+'  . ., .... ;o  o; ..... .;.            .
+'  .  ,'.. .. .::. .. . ..;.             .
+'  . . '.  .. .... ..''..'.              .
+'   . . '..  ........'.' .               .
+'    .  .''............''.               .
+'      .  '',,;;;;;;,,''                 .
+'            ..........                  .
+'                                        .
+',,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,'
+'c:l:c c:c:c:cl:cc:l:l:::c:c::c:c:cc::c '
+,old oddxoddox oddo xodod loolol ll  l '
+,ood ddxdxo ddo dodoo odo dodoo odd oo '
+,ddd kxxxx dxxk xx kxdxdxdxxk xdddo   d '
+kNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNx
+EOF
 fi
 
-# Function to print with optional color
-print_eye() {
-    if $HAS_COLOR; then
-        echo -e "${DARK_GRAY}        ██████████████${RESET}"
-        echo -e "${DARK_GRAY}      ██${RESET}              ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}    ██${RESET}    ▄▄▄▄▄▄▄▄    ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}   ██${RESET}   ▄██████████▄   ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}  ██${RESET}   ████${BRIGHT_RED}██████${RESET}████   ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}  ██${RESET}   ████${BRIGHT_RED}██${RED}██${BRIGHT_RED}██${RESET}████   ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}  ██${RESET}   ████${BRIGHT_RED}██████${RESET}████   ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}   ██${RESET}   ▀██████████▀   ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}    ██${RESET}    ▀▀▀▀▀▀▀▀    ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}      ██${RESET}              ${DARK_GRAY}██${RESET}"
-        echo -e "${DARK_GRAY}        ██████████████${RESET}"
-    else
-        echo "        ██████████████"
-        echo "      ██              ██"
-        echo "    ██    ▄▄▄▄▄▄▄▄    ██"
-        echo "   ██   ▄██████████▄   ██"
-        echo "  ██   ██████████████   ██"
-        echo "  ██   ██████████████   ██"
-        echo "  ██   ██████████████   ██"
-        echo "   ██   ▀██████████▀   ██"
-        echo "    ██    ▀▀▀▀▀▀▀▀    ██"
-        echo "      ██              ██"
-        echo "        ██████████████"
-    fi
-    echo ""
-}
-
-print_eye
+echo ""
