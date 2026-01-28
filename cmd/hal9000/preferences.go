@@ -6,10 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pearcec/hal9000/internal/config"
 	"github.com/spf13/cobra"
 )
 
-var preferencesDir = filepath.Join(os.Getenv("HOME"), "Documents", "Google Drive", "Claude", "preferences")
+func getPreferencesDir() string {
+	return filepath.Join(config.GetLibraryPath(), "preferences")
+}
 
 var preferencesCmd = &cobra.Command{
 	Use:   "preferences",
@@ -30,11 +33,11 @@ var preferencesListCmd = &cobra.Command{
 	Short: "List all preference files",
 	Long:  `I will enumerate all available preference files for you.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		entries, err := os.ReadDir(preferencesDir)
+		entries, err := os.ReadDir(getPreferencesDir())
 		if err != nil {
 			if os.IsNotExist(err) {
 				fmt.Println("I'm sorry, Dave. The preferences directory does not exist.")
-				fmt.Printf("Expected location: %s\n", preferencesDir)
+				fmt.Printf("Expected location: %s\n", getPreferencesDir())
 				return
 			}
 			fmt.Fprintf(os.Stderr, "I'm afraid I can't do that: %v\n", err)
@@ -51,7 +54,7 @@ var preferencesListCmd = &cobra.Command{
 
 		if len(prefs) == 0 {
 			fmt.Println("No preference files found.")
-			fmt.Printf("Preferences directory: %s\n", preferencesDir)
+			fmt.Printf("Preferences directory: %s\n", getPreferencesDir())
 			return
 		}
 
@@ -69,7 +72,7 @@ var preferencesGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		routine := args[0]
-		filePath := filepath.Join(preferencesDir, routine+".md")
+		filePath := filepath.Join(getPreferencesDir(), routine+".md")
 
 		content, err := os.ReadFile(filePath)
 		if err != nil {
@@ -102,7 +105,7 @@ Example:
 		section := args[1]
 		value := args[2]
 
-		filePath := filepath.Join(preferencesDir, routine+".md")
+		filePath := filepath.Join(getPreferencesDir(), routine+".md")
 
 		content, err := os.ReadFile(filePath)
 		if err != nil {

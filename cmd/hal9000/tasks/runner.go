@@ -125,7 +125,7 @@ func CreateCommand(task Task) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			if PreferencesExist(task) {
 				fmt.Printf("Status: %s is configured and ready.\n", task.Name())
-				fmt.Printf("Preferences: %s/%s.md\n", DefaultPreferencesDir, task.PreferencesKey())
+				fmt.Printf("Preferences: %s/%s.md\n", GetDefaultPreferencesDir(), task.PreferencesKey())
 			} else {
 				fmt.Printf("Status: %s requires setup.\n", task.Name())
 				fmt.Printf("Run `hal9000 %s setup` to configure.\n", task.Name())

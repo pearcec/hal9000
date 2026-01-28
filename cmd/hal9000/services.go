@@ -699,7 +699,8 @@ func runServicesDiagnose(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("HAL 9000 Service Diagnostics")
-	fmt.Println("============================\n")
+	fmt.Println("============================")
+	fmt.Println()
 
 	hasProblems := false
 

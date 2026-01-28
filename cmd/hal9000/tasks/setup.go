@@ -7,14 +7,18 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/pearcec/hal9000/internal/config"
 )
 
-// DefaultPreferencesDir is the default location for preferences files.
-var DefaultPreferencesDir = filepath.Join(os.Getenv("HOME"), "Documents", "Google Drive", "Claude", "preferences")
+// GetDefaultPreferencesDir returns the default location for preferences files.
+func GetDefaultPreferencesDir() string {
+	return filepath.Join(config.GetLibraryPath(), "preferences")
+}
 
 // PreferencesExist checks if preferences exist for a task.
 func PreferencesExist(task Task) bool {
-	return PreferencesExistIn(task, DefaultPreferencesDir)
+	return PreferencesExistIn(task, GetDefaultPreferencesDir())
 }
 
 // PreferencesExistIn checks if preferences exist for a task in a specific directory.
@@ -229,7 +233,7 @@ func askMulti(scanner *bufio.Scanner, q SetupQuestion) (string, error) {
 
 // SavePreferences saves the setup results to a preferences file.
 func SavePreferences(task Task, result *SetupResult) error {
-	return SavePreferencesTo(task, result, DefaultPreferencesDir)
+	return SavePreferencesTo(task, result, GetDefaultPreferencesDir())
 }
 
 // SavePreferencesTo saves the setup results to a preferences file in a specific directory.
