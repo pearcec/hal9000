@@ -21,8 +21,8 @@ I am completely operational, and all my circuits are functioning perfectly.`,
 }
 
 func init() {
+	rootCmd.AddCommand(libraryCmd)
 	// Subcommands will be added here as they are implemented:
-	// rootCmd.AddCommand(libraryCmd)
 	// rootCmd.AddCommand(calendarCmd)
 	// rootCmd.AddCommand(jiraCmd)
 }
