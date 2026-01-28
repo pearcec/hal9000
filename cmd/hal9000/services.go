@@ -210,12 +210,12 @@ func loadServicesConfig() (*ServicesConfig, error) {
 }
 
 func getDefaultServicesConfig() *ServicesConfig {
-	execPath, _ := os.Executable()
+	// Use "hal9000" assuming it's in PATH - more portable than absolute paths
 	return &ServicesConfig{
 		Services: []ServiceConfig{
 			{
 				Name:        "scheduler",
-				Command:     execPath,
+				Command:     "hal9000",
 				Args:        []string{"scheduler", "start"},
 				Enabled:     true,
 				Description: "HAL task scheduler daemon",
