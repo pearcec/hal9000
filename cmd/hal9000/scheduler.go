@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pearcec/hal9000/cmd/hal9000/tasks"
 	"github.com/pearcec/hal9000/internal/config"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
@@ -448,23 +450,96 @@ func runSchedulerForeground() error {
 	}
 }
 
-func executeTask(task string, notify bool) {
-	log.Printf("[scheduler] Executing task: %s", task)
+func executeTask(taskName string, notify bool) {
+	log.Printf("[scheduler] Executing task: %s", taskName)
 	start := time.Now()
 
-	// TODO: Implement actual task execution
-	// 1. Load preferences from Library
-	// 2. Invoke Claude or task-specific implementation
-	// 3. Store result in Library
-	// 4. Send notification if configured
+	var success bool
+	var message string
+	var output string
 
-	// For now, just log the execution
+	// Try to get the task from the registry
+	task := tasks.Get(taskName)
+	if task != nil {
+		// Execute the registered task
+		runner := tasks.NewRunner(task)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		result, err := runner.Execute(ctx)
+		if err != nil {
+			success = false
+			message = fmt.Sprintf("Task failed: %v", err)
+			log.Printf("[scheduler] Task %s failed: %v", taskName, err)
+		} else {
+			success = result.Success
+			message = result.Message
+			output = result.Output
+			log.Printf("[scheduler] Task %s completed successfully", taskName)
+		}
+	} else {
+		// Task not registered - log but don't fail
+		success = true
+		message = fmt.Sprintf("Task '%s' is not registered in the task framework", taskName)
+		log.Printf("[scheduler] %s", message)
+	}
+
 	duration := time.Since(start)
-	log.Printf("[scheduler] Task %s completed in %v", task, duration)
+	log.Printf("[scheduler] Task %s finished in %v", taskName, duration)
+
+	// Store execution result in Library
+	if err := storeExecutionResult(taskName, success, message, output, duration); err != nil {
+		log.Printf("[scheduler] Failed to store result: %v", err)
+	}
 
 	if notify {
-		sendNotification(task, "Task completed successfully")
+		if success {
+			sendNotification(taskName, "Task completed successfully")
+		} else {
+			sendNotification(taskName, "Task failed: "+message)
+		}
 	}
+}
+
+// ExecutionResult represents the outcome of a scheduled task run.
+type ExecutionResult struct {
+	Task      string    `json:"task"`
+	Timestamp time.Time `json:"timestamp"`
+	Success   bool      `json:"success"`
+	Duration  string    `json:"duration"`
+	Message   string    `json:"message,omitempty"`
+	Output    string    `json:"output,omitempty"`
+}
+
+func storeExecutionResult(taskName string, success bool, message, output string, duration time.Duration) error {
+	resultsDir := filepath.Join(getLibraryPath(), "scheduler-results")
+	if err := os.MkdirAll(resultsDir, 0755); err != nil {
+		return err
+	}
+
+	result := ExecutionResult{
+		Task:      taskName,
+		Timestamp: time.Now(),
+		Success:   success,
+		Duration:  duration.String(),
+		Message:   message,
+		Output:    output,
+	}
+
+	// Append to a JSONL file (one JSON object per line)
+	resultsFile := filepath.Join(resultsDir, taskName+".jsonl")
+	f, err := os.OpenFile(resultsFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(string(data) + "\n")
+	return err
 }
 
 func sendNotification(task, message string) {
