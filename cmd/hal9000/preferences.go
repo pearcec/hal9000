@@ -105,13 +105,29 @@ Example:
 		section := args[1]
 		value := args[2]
 
-		filePath := filepath.Join(getPreferencesDir(), routine+".md")
+		prefsDir := getPreferencesDir()
+		filePath := filepath.Join(prefsDir, routine+".md")
 
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				fmt.Printf("I'm sorry, Dave. I cannot find preferences for '%s'.\n", routine)
-				fmt.Println("Use 'hal9000 preferences list' to see available preferences.")
+				// Create new preference file with the section
+				if err := os.MkdirAll(prefsDir, 0755); err != nil {
+					fmt.Fprintf(os.Stderr, "I'm afraid I can't do that: %v\n", err)
+					os.Exit(1)
+				}
+
+				// Build new content with section
+				newContent := strings.ReplaceAll(value, "\\n", "\n")
+				template := fmt.Sprintf("# %s Preferences\n\n## %s\n%s\n", strings.Title(routine), section, newContent)
+
+				if err := os.WriteFile(filePath, []byte(template), 0644); err != nil {
+					fmt.Fprintf(os.Stderr, "I'm afraid I can't do that: %v\n", err)
+					os.Exit(1)
+				}
+
+				fmt.Printf("Created preferences for '%s' with section '%s'.\n", routine, section)
+				fmt.Println("I am completely operational, and your preferences have been initialized.")
 				return
 			}
 			fmt.Fprintf(os.Stderr, "I'm afraid I can't do that: %v\n", err)
@@ -120,9 +136,10 @@ Example:
 
 		updated, found := updateSection(string(content), section, value)
 		if !found {
-			fmt.Printf("I'm sorry, Dave. I cannot find section '%s' in %s preferences.\n", section, routine)
-			fmt.Println("Use 'hal9000 preferences get <routine>' to see available sections.")
-			return
+			// Section not found - append it to the file
+			newContent := strings.ReplaceAll(value, "\\n", "\n")
+			updated = string(content) + fmt.Sprintf("\n## %s\n%s\n", section, newContent)
+			found = true
 		}
 
 		err = os.WriteFile(filePath, []byte(updated), 0644)
