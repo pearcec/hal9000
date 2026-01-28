@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	libraryPath string
-	dryRun      bool
-	noAnalyze   bool
+	libraryPath   string
+	dryRun        bool
+	noAnalyze     bool
+	basicAnalysis bool
 )
 
 // Cmd is the url command
@@ -26,14 +27,14 @@ var Cmd = &cobra.Command{
 
 When you provide a URL, I will:
 1. Fetch the content from the URL
-2. Analyze it (extract title, generate tags, summary, and takes)
+2. Analyze it with Claude (generate tags, summary, and key takes)
 3. Save it to library/url_library/ with a dated filename
 
 The saved document includes:
 - Original URL
 - Title
 - Date processed
-- Tags (auto-generated based on content)
+- Tags (AI-generated based on content)
 - Summary
 - Key takes/insights
 - Raw content excerpt
@@ -41,6 +42,7 @@ The saved document includes:
 Examples:
   hal9000 url https://example.com/article
   hal9000 url https://blog.example.com/post --dry-run
+  hal9000 url https://news.example.com/story --basic   # Use basic analysis (no Claude)
   hal9000 url https://news.example.com/story --no-analyze`,
 	Args: cobra.ExactArgs(1),
 	RunE: runURL,
@@ -50,6 +52,7 @@ func init() {
 	Cmd.Flags().StringVar(&libraryPath, "library-path", "", "Override default library location")
 	Cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be saved without saving")
 	Cmd.Flags().BoolVar(&noAnalyze, "no-analyze", false, "Skip content analysis, save raw content only")
+	Cmd.Flags().BoolVar(&basicAnalysis, "basic", false, "Use basic keyword analysis instead of Claude")
 
 	Cmd.AddCommand(searchCmd)
 }
@@ -85,11 +88,35 @@ func runURL(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Analyze content (unless --no-analyze)
-	var analysis *Analysis
-	if !noAnalyze {
-		fmt.Println("Analyzing content...")
-		analysis, err = Analyze(content, prefs)
+	// No analysis mode - just save raw content
+	if noAnalyze {
+		analysis := &Analysis{
+			Title:   content.Title,
+			Tags:    []string{},
+			Summary: "",
+			Takes:   []string{},
+		}
+		output := generateOutput(url, content, analysis, prefs)
+
+		if dryRun {
+			fmt.Println("\n--- DRY RUN: Would save the following ---")
+			fmt.Println(output)
+			return nil
+		}
+
+		filename, err := saveToLibrary(url, content, output)
+		if err != nil {
+			return fmt.Errorf("failed to save to library: %w", err)
+		}
+		fmt.Printf("\nSaved to: %s\n", filename)
+		fmt.Println("I am completely operational, and the URL has been processed.")
+		return nil
+	}
+
+	// Basic analysis mode (--basic flag) - use Go-based keyword extraction
+	if basicAnalysis {
+		fmt.Println("Analyzing content (basic mode)...")
+		analysis, err := Analyze(content, prefs)
 		if err != nil {
 			fmt.Printf("Warning: Analysis failed, saving raw content: %v\n", err)
 			analysis = &Analysis{
@@ -99,32 +126,52 @@ func runURL(cmd *cobra.Command, args []string) error {
 				Takes:   []string{},
 			}
 		}
-	} else {
-		analysis = &Analysis{
-			Title:   content.Title,
-			Tags:    []string{},
-			Summary: "",
-			Takes:   []string{},
+
+		output := generateOutput(url, content, analysis, prefs)
+
+		if dryRun {
+			fmt.Println("\n--- DRY RUN: Would save the following ---")
+			fmt.Println(output)
+			return nil
 		}
-	}
 
-	// Generate output
-	output := generateOutput(url, content, analysis, prefs)
-
-	if dryRun {
-		fmt.Println("\n--- DRY RUN: Would save the following ---")
-		fmt.Println(output)
+		filename, err := saveToLibrary(url, content, output)
+		if err != nil {
+			return fmt.Errorf("failed to save to library: %w", err)
+		}
+		fmt.Printf("\nSaved to: %s\n", filename)
+		fmt.Println("I am completely operational, and the URL has been processed.")
 		return nil
 	}
 
-	// Save to library
-	filename, err := saveToLibrary(url, content, output)
+	// Default: Claude analysis
+	filename, err := GenerateAndSaveWithClaude(url, content, prefs, dryRun)
 	if err != nil {
-		return fmt.Errorf("failed to save to library: %w", err)
+		// Fall back to basic analysis if Claude fails
+		fmt.Printf("Warning: Claude analysis failed (%v), falling back to basic analysis\n", err)
+		analysis, _ := Analyze(content, prefs)
+		if analysis == nil {
+			analysis = &Analysis{Title: content.Title}
+		}
+
+		output := generateOutput(url, content, analysis, prefs)
+
+		if dryRun {
+			fmt.Println("\n--- DRY RUN: Would save the following ---")
+			fmt.Println(output)
+			return nil
+		}
+
+		filename, err = saveToLibrary(url, content, output)
+		if err != nil {
+			return fmt.Errorf("failed to save to library: %w", err)
+		}
 	}
 
-	fmt.Printf("\nSaved to: %s\n", filename)
-	fmt.Println("I am completely operational, and the URL has been processed.")
+	if filename != "" {
+		fmt.Printf("\nSaved to: %s\n", filename)
+		fmt.Println("I am completely operational, and the URL has been processed.")
+	}
 	return nil
 }
 
