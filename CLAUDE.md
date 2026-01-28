@@ -30,21 +30,23 @@ No autonomous initiative outside these modes.
 ## Available Tools
 
 ### Library (Knowledge Graph)
-The Library stores everything HAL knows. Located at:
-`~/Documents/Google Drive/Claude/`
+The Library stores everything HAL knows. Access via CLI:
 
 ```bash
 # Read from library
-cat "~/Documents/Google Drive/Claude/{type}/{file}.md"
+hal9000 library read {type}/{file}.md
 
 # List entities by type
-ls "~/Documents/Google Drive/Claude/{type}/"
+hal9000 library list {type}/
 
 # Search content
-grep -r "search term" "~/Documents/Google Drive/Claude/"
+hal9000 library search "search term"
+
+# Write to library
+hal9000 library write {type}/{file}.md
 ```
 
-Entity types: `agenda/`, `people-profiles/`, `reminders/`, `lists/`, `preferences/`, `hal-memory/`
+Entity types: `agenda/`, `people-profiles/`, `collaborations/`, `url_library/`, `reminders/`, `preferences/`, `hal-memory/`
 
 ### Preferences (Auto-Loaded)
 
@@ -52,8 +54,8 @@ Preferences are **automatically injected** via hooks when you mention task keywo
 When you see `<hal-context task="...">` in the conversation, those are the user's preferences.
 
 **How it works:**
-- User says "create my agenda" → hook loads `preferences/agenda.md`
-- User says "show my calendar" → hook loads `preferences/calendar.md`
+- User says "create my agenda" → hook runs `hal9000 preferences get agenda`
+- User says "process this url" → hook runs `hal9000 preferences get url`
 - Preferences appear as `<hal-context>` blocks before your response
 
 **If preferences don't exist:**
@@ -66,12 +68,12 @@ No agenda preferences found - run first-time setup
 When you see "No preferences found", **ask setup questions**:
 1. Acknowledge this is first-time setup
 2. Ask the key questions for that task (see SPEC.md for each task's questions)
-3. Save responses to `preferences/{task}.md`
+3. Save responses via `hal9000 preferences set {task}`
 4. Then execute the task
 
 **Manual load** (if needed):
 ```bash
-cat "~/Documents/Google Drive/Claude/preferences/{routine}.md"
+hal9000 preferences get {task}
 ```
 
 Apply preferences to customize output format, priorities, exclusions.
@@ -79,18 +81,15 @@ Apply preferences to customize output format, priorities, exclusions.
 ### Calendar Data
 Floyd watchers store raw calendar data:
 ```bash
-ls "~/Documents/Google Drive/Claude/calendar/"
-cat "~/Documents/Google Drive/Claude/calendar/calendar_YYYY-MM-DD_*.json"
+hal9000 library list calendar/
+hal9000 library read calendar/calendar_YYYY-MM-DD_*.json
+hal9000 calendar today   # Formatted view
 ```
 
 ### Memory
 Store conversation summaries and insights:
 ```bash
-# Write memory
-cat > "~/Documents/Google Drive/Claude/hal-memory/YYYY-MM-DD_{topic}.md" << 'EOF'
-# Topic Title
-...
-EOF
+hal9000 library write hal-memory/YYYY-MM-DD_{topic}.md
 ```
 
 ## Routines
@@ -131,6 +130,27 @@ Steps:
 2. Identify carried-over items
 3. Note patterns or concerns
 4. Prep for next week
+
+### URL Processing
+**Trigger**: "/url {URL}" or "save this url"
+**Preferences**: `preferences/url.md`
+
+Steps:
+1. Fetch content from URL
+2. Load preferences for tag/summary/takes guidelines
+3. Analyze content:
+   - Generate 5-8 relevant tags
+   - Write summary (2-3 sentences)
+   - Extract takes (3-4 key insights)
+4. Save to `url_library/url_YYYY-MM-DD_{descriptor}.md`
+
+### Library Search
+**Trigger**: "search for {term}" or `hal9000 library search {term}`
+
+Steps:
+1. Search across library folders
+2. Match title, tags, summary, content
+3. Return relevant results with context
 
 ## Advisor Mode (The 20%)
 

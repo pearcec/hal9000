@@ -9,3 +9,6 @@
 
 # Gas Town (added by gt)
 .claude/
+
+# Library (personal data)
+/library/

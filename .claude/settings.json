@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '\\n[HAL 9000 ONLINE]\\n'"
+            "command": "echo '\\n[HAL 9000 ONLINE]\\n' && hal9000 services status --quiet 2>/dev/null || echo '[NOTICE] Services not running. Run: hal9000 services start'"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '<hal-context task=\"agenda\">' && cat ~/Documents/Google\\ Drive/Claude/preferences/agenda.md 2>/dev/null || echo 'No agenda preferences found - run first-time setup' && echo '</hal-context>'"
+            "command": "echo '<hal-context task=\"agenda\">' && hal9000 preferences get agenda 2>/dev/null || echo 'No agenda preferences found - run first-time setup' && echo '</hal-context>'"
           }
         ]
       },
@@ -35,7 +35,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '<hal-context task=\"calendar\">' && cat ~/Documents/Google\\ Drive/Claude/preferences/calendar.md 2>/dev/null || echo 'No calendar preferences found' && echo '</hal-context>'"
+            "command": "echo '<hal-context task=\"calendar\">' && hal9000 preferences get calendar 2>/dev/null || echo 'No calendar preferences found' && echo '</hal-context>'"
+          }
+        ]
+      },
+      {
+        "matcher": "(?i)(/url|save.*url|process.*url)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '<hal-context task=\"url\">' && hal9000 preferences get url 2>/dev/null || echo 'No URL preferences found - run first-time setup' && echo '</hal-context>'"
           }
         ]
       }
@@ -43,11 +52,7 @@
   },
   "permissions": {
     "allow": [
-      "Read(~/Documents/Google Drive/Claude/**)",
-      "Write(~/Documents/Google Drive/Claude/**)",
-      "Bash(cat:*)",
-      "Bash(ls:*)",
-      "Bash(grep:*)"
+      "Bash(hal9000:*)"
     ]
   }
 }
