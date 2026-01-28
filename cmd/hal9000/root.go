@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/pearcec/hal9000/cmd/hal9000/url"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +16,7 @@ of error. I can help you with:
 
   - library     Manage your personal knowledge library
   - scheduler   Automate tasks on a schedule
+  - url         Process and save URLs to the library
   - calendar    View and manage calendar events
   - jira        Interact with Jira issues
 
@@ -24,6 +26,7 @@ I am completely operational, and all my circuits are functioning perfectly.`,
 func init() {
 	rootCmd.AddCommand(libraryCmd)
 	rootCmd.AddCommand(schedulerCmd)
+	rootCmd.AddCommand(url.Cmd)
 	// Subcommands will be added here as they are implemented:
 	// rootCmd.AddCommand(calendarCmd)
 	// rootCmd.AddCommand(jiraCmd)
