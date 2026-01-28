@@ -286,7 +286,17 @@ func (l *Library) Delete(entityID string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	entity, err := l.Get(entityID)
+	// Build path directly to avoid deadlock (Get() would try to acquire RLock)
+	parts := strings.SplitN(entityID, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid entity ID: %s", entityID)
+	}
+
+	entityType, id := parts[0], parts[1]
+	filename := sanitizeFilename(id) + ".json"
+	fullPath := filepath.Join(l.BasePath, entityType, filename)
+
+	entity, err := l.loadEntity(fullPath)
 	if err != nil {
 		return err
 	}
