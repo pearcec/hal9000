@@ -7,6 +7,7 @@ import (
 
 	// Import task implementations to trigger registration
 	_ "github.com/pearcec/hal9000/cmd/hal9000/tasks/agenda"
+	_ "github.com/pearcec/hal9000/cmd/hal9000/tasks/collabsummary"
 )
 
 var rootCmd = &cobra.Command{
@@ -24,6 +25,7 @@ of error. I can help you with:
   - calendar    View and manage calendar events
   - agenda      Generate your daily agenda
   - jira        Interact with Jira issues
+  - collabsummary  Process meeting transcripts
 
 I am completely operational, and all my circuits are functioning perfectly.`,
 }
@@ -32,7 +34,7 @@ func init() {
 	rootCmd.AddCommand(libraryCmd)
 	rootCmd.AddCommand(schedulerCmd)
 	rootCmd.AddCommand(url.Cmd)
-	// Register all task commands (agenda, etc.)
+	// Register all task commands (agenda, collabsummary, etc.)
 	tasks.RegisterCommands(rootCmd)
 	// Subcommands will be added here as they are implemented:
 	// rootCmd.AddCommand(jiraCmd)
