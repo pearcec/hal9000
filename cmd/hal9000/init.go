@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -29,6 +30,9 @@ Creates the following structure in the current directory:
 Also creates user configuration at ~/.config/hal9000/:
   config.yaml       Default configuration
   credentials/      Credential storage
+  services.yaml     Service configuration
+
+Installs CLI to ~/.local/bin/hal9000 (symlink to current executable).
 
 This command is idempotent - safe to run multiple times.
 Existing files are never overwritten.`,
@@ -87,6 +91,25 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
+	// Create ~/.local/bin and symlink hal9000
+	localBinDir := filepath.Join(homeDir, ".local", "bin")
+	if err := createDirIfNotExists(localBinDir, &created); err != nil {
+		return fmt.Errorf("failed to create ~/.local/bin: %w", err)
+	}
+
+	// Create symlink to current executable
+	symlinkPath := filepath.Join(localBinDir, "hal9000")
+	if err := createSymlinkIfNotExists(symlinkPath, &created); err != nil {
+		// Non-fatal - just warn
+		fmt.Printf("Warning: could not create symlink: %v\n", err)
+	}
+
+	// Check if ~/.local/bin is in PATH
+	pathWarning := ""
+	if !isInPath(localBinDir) {
+		pathWarning = fmt.Sprintf("\nNote: Add ~/.local/bin to your PATH:\n  export PATH=\"%s:$PATH\"\n", localBinDir)
+	}
+
 	// Print results
 	if len(created) == 0 {
 		fmt.Println("HAL 9000 is already initialized. All directories and files exist.")
@@ -95,6 +118,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		for _, item := range created {
 			fmt.Printf("  %s\n", item)
 		}
+	}
+
+	if pathWarning != "" {
+		fmt.Print(pathWarning)
 	}
 
 	fmt.Println("\nI am completely operational, and all my circuits are functioning perfectly.")
@@ -137,4 +164,52 @@ notifications:
 		*created = append(*created, path)
 	}
 	return nil
+}
+
+func createSymlinkIfNotExists(symlinkPath string, created *[]string) error {
+	// Get current executable path
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("could not determine executable path: %w", err)
+	}
+
+	// Resolve to absolute path (in case it's a symlink itself)
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return fmt.Errorf("could not resolve executable path: %w", err)
+	}
+
+	// Check if symlink already exists
+	if linkTarget, err := os.Readlink(symlinkPath); err == nil {
+		// Symlink exists - check if it points to the right place
+		if linkTarget == execPath {
+			return nil // Already correct
+		}
+		// Points somewhere else - remove and recreate
+		if err := os.Remove(symlinkPath); err != nil {
+			return fmt.Errorf("could not remove old symlink: %w", err)
+		}
+	} else if _, err := os.Stat(symlinkPath); err == nil {
+		// File exists but is not a symlink
+		return fmt.Errorf("%s exists and is not a symlink", symlinkPath)
+	}
+
+	// Create the symlink
+	if err := os.Symlink(execPath, symlinkPath); err != nil {
+		return fmt.Errorf("could not create symlink: %w", err)
+	}
+
+	*created = append(*created, symlinkPath+" -> "+execPath)
+	return nil
+}
+
+func isInPath(dir string) bool {
+	pathEnv := os.Getenv("PATH")
+	paths := strings.Split(pathEnv, string(os.PathListSeparator))
+	for _, p := range paths {
+		if p == dir {
+			return true
+		}
+	}
+	return false
 }
