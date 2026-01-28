@@ -406,6 +406,184 @@ These are **one-time overrides**, not preference changes.
 
 ---
 
+## Task Framework
+
+Tasks are the CLI implementation of routines. Each task follows a consistent pattern
+so new tasks can be added easily using the same skeleton.
+
+### Task Interface
+
+Every task implements the same interface:
+```
+hal9000 <task> [subcommand] [flags]
+
+Subcommands (standard for all tasks):
+  run         Execute the task (default if no subcommand)
+  setup       Interactive preference configuration
+  status      Show task status and last run
+  history     Show previous runs
+
+Flags (standard for all tasks):
+  --dry-run       Show what would be done without doing it
+  --output=<path> Override output location
+  --format=<fmt>  Output format (markdown, json, text)
+```
+
+### Task Structure
+
+Each task is a Go package under `cmd/hal9000/tasks/`:
+```
+cmd/hal9000/tasks/
+├── task.go           # Task interface definition
+├── agenda/
+│   ├── agenda.go     # Agenda task implementation
+│   ├── setup.go      # First-run setup questions
+│   └── agenda_test.go
+├── meeting-prep/
+│   ├── meetingprep.go
+│   ├── setup.go
+│   └── meetingprep_test.go
+└── weekly-review/
+    └── ...
+```
+
+### Task Interface (Go)
+
+```go
+// Task defines the interface all HAL tasks must implement
+type Task interface {
+    // Name returns the task identifier (e.g., "agenda")
+    Name() string
+
+    // Description returns human-readable description
+    Description() string
+
+    // PreferencesKey returns the preferences file name
+    PreferencesKey() string
+
+    // SetupQuestions returns questions for first-run setup
+    SetupQuestions() []SetupQuestion
+
+    // Run executes the task with given options
+    Run(ctx context.Context, opts RunOptions) (*Result, error)
+}
+
+type SetupQuestion struct {
+    Key         string   // Preference key to set
+    Question    string   // Question to ask user
+    Default     string   // Default value
+    Options     []string // If non-empty, multiple choice
+    Section     string   // Section in preferences file
+}
+```
+
+### First-Run Setup
+
+When a task runs for the first time (no preferences file exists), HAL:
+
+1. **Detects missing preferences**
+   ```
+   $ hal9000 agenda
+
+   I don't have your agenda preferences yet. Let me ask a few questions
+   to set things up. This only takes a minute.
+   ```
+
+2. **Asks setup questions**
+   ```
+   What time do you usually start your workday? [9:00 AM]
+   > 8:30 AM
+
+   How many priority items should I highlight? [5]
+   > 3
+
+   Should I include routine/recurring items? [yes/no]
+   > yes
+
+   Which JIRA board should I check? [PEARCE]
+   > PEARCE
+   ```
+
+3. **Creates preferences file**
+   ```
+   I've saved your preferences to the Library. You can update them anytime
+   by saying "update my agenda preferences" or running `hal9000 agenda setup`.
+
+   Creating your agenda now...
+   ```
+
+4. **Runs the task**
+
+### Setup Question Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `text` | Free text input | "What JIRA board?" |
+| `choice` | Single selection | "Format: markdown/text/json" |
+| `multi` | Multiple selection | "Which sources to include?" |
+| `confirm` | Yes/no | "Include routine items?" |
+| `time` | Time input | "What time do you start work?" |
+
+### Adding a New Task
+
+1. Create package under `cmd/hal9000/tasks/<name>/`
+2. Implement `Task` interface
+3. Define `SetupQuestions()` for first-run
+4. Register in `cmd/hal9000/tasks/registry.go`
+5. Add preferences template to `library/preferences/<name>.md`
+
+**Example: Adding a "standup" task**
+```go
+package standup
+
+type StandupTask struct{}
+
+func (t *StandupTask) Name() string { return "standup" }
+
+func (t *StandupTask) Description() string {
+    return "Generate standup update from yesterday's activity"
+}
+
+func (t *StandupTask) PreferencesKey() string { return "standup" }
+
+func (t *StandupTask) SetupQuestions() []SetupQuestion {
+    return []SetupQuestion{
+        {Key: "format", Question: "Standup format?", Options: []string{"bullet", "prose"}, Default: "bullet"},
+        {Key: "include_blockers", Question: "Include blockers section?", Default: "yes"},
+        {Key: "lookback_hours", Question: "Hours to look back?", Default: "24"},
+    }
+}
+
+func (t *StandupTask) Run(ctx context.Context, opts RunOptions) (*Result, error) {
+    // Implementation...
+}
+```
+
+### Agenda Task Specification
+
+The agenda task is the reference implementation:
+
+**Command:** `hal9000 agenda [date]`
+
+**Sources:**
+- Google Calendar (via Library calendar data)
+- JIRA (via API or Library)
+- Previous agenda (for rollover)
+- Reminders folder
+- People profiles (open items)
+
+**Setup Questions:**
+1. "What time do you start work?" → `workday_start`
+2. "How many priority items to highlight?" → `priority_count`
+3. "Include routine items?" → `include_routine`
+4. "JIRA board to check?" → `jira_board`
+5. "Include prep notes for meetings?" → `include_prep`
+6. "Agenda format?" → `format` (full/compact/minimal)
+
+**Output:** `library/agenda/agenda_YYYY-MM-DD_daily-agenda.md`
+
+---
+
 ## Advisor Mode (The 20%)
 
 **Triggers:**
