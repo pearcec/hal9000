@@ -277,69 +277,124 @@ The act of building something IS the authorization.
 
 ### HAL Task Automation
 
-HAL tasks (agenda, weekly-review, etc.) are automated via the **HAL Scheduler**.
+HAL tasks (agenda, weekly-review, etc.) are automated via the **HAL Scheduler Daemon**.
 
 **Architecture:**
 ```
 ┌─────────────────────────────────────────────┐
-│  HAL Scheduler (launchd/cron)               │
-│  - Reads schedule from Library              │
-│  - Triggers hal9000 CLI at scheduled times  │
-│  - Logs results                             │
+│  HAL Scheduler Daemon (Go process)          │
+│  - Uses robfig/cron or gocron library       │
+│  - Reads schedules from Library             │
+│  - Runs as background daemon                │
+│  - Triggers tasks at scheduled times        │
 └─────────────────┬───────────────────────────┘
                   │ triggers
                   ▼
 ┌─────────────────────────────────────────────┐
-│  hal9000 <task> --automated                 │
-│  - Loads preferences                        │
-│  - Executes task                            │
+│  Task Execution                             │
+│  - Loads preferences from Library           │
+│  - Invokes Claude for task generation       │
 │  - Stores output in Library                 │
 │  - Sends notification if configured         │
 └─────────────────────────────────────────────┘
 ```
 
-**Schedule Configuration:** `library/schedules/tasks.md`
-```markdown
-# HAL Task Schedules
+**Go Library:** `github.com/robfig/cron/v3` or `github.com/go-co-op/gocron/v2`
 
-## Active Schedules
-
-| Task | Schedule | Enabled | Last Run |
-|------|----------|---------|----------|
-| agenda | 6:00 AM daily | yes | 2026-01-28 |
-| weekly-review | Friday 4:00 PM | yes | 2026-01-24 |
-| end-of-day | 5:00 PM weekdays | no | - |
-
-## Schedule Format
-
-Schedules use cron syntax:
-- `0 6 * * *` - 6 AM daily
-- `0 16 * * 5` - 4 PM Fridays
-- `0 17 * * 1-5` - 5 PM weekdays
+**Schedule Configuration:** `library/schedules/hal-scheduler.json`
+```json
+{
+  "schedules": [
+    {
+      "task": "agenda",
+      "cron": "0 6 * * *",
+      "enabled": true,
+      "notify": true
+    },
+    {
+      "task": "weekly-review",
+      "cron": "0 16 * * 5",
+      "enabled": true,
+      "notify": true
+    },
+    {
+      "task": "end-of-day",
+      "cron": "0 17 * * 1-5",
+      "enabled": false,
+      "notify": false
+    }
+  ]
+}
 ```
 
-**Scheduler Implementation:**
+**Daemon Implementation:**
 
-1. **Install scheduler** (`hal9000 scheduler install`)
-   - Creates launchd plist (macOS) or cron entries
-   - Reads schedules from Library
-   - Sets up logging
+```go
+// cmd/hal9000/scheduler/daemon.go
+package scheduler
 
-2. **Scheduler runs task** (at scheduled time)
-   ```bash
-   hal9000 <task> --automated --notify
-   ```
-   - `--automated` flag: non-interactive, use saved preferences
-   - `--notify` flag: send notification on completion
+import (
+    "github.com/robfig/cron/v3"
+)
 
-3. **Results stored**
-   - Output: `library/<task>/<task>_YYYY-MM-DD.md`
-   - Log: `library/logs/scheduler_YYYY-MM-DD.log`
+type Scheduler struct {
+    cron     *cron.Cron
+    config   *Config
+    library  *lmc.Library
+}
+
+func (s *Scheduler) Start() error {
+    s.cron = cron.New(cron.WithSeconds())
+
+    for _, schedule := range s.config.Schedules {
+        if !schedule.Enabled {
+            continue
+        }
+        task := schedule.Task
+        s.cron.AddFunc(schedule.Cron, func() {
+            s.runTask(task)
+        })
+    }
+
+    s.cron.Start()
+    return nil
+}
+
+func (s *Scheduler) runTask(task string) {
+    // 1. Load preferences
+    // 2. Invoke Claude or task implementation
+    // 3. Store result in Library
+    // 4. Send notification
+}
+```
+
+**Daemon Management:**
+
+```bash
+# Start daemon (foreground)
+hal9000 scheduler start
+
+# Start daemon (background)
+hal9000 scheduler start --daemon
+
+# Stop daemon
+hal9000 scheduler stop
+
+# Check status
+hal9000 scheduler status
+
+# Reload schedules (no restart needed)
+hal9000 scheduler reload
+```
+
+**Results stored:**
+- Output: `library/<task>/<task>_YYYY-MM-DD.md`
+- Log: `library/logs/hal-scheduler.log`
 
 **Notification Options:**
-- macOS notification center
-- Email (if configured)
+- macOS notification center (via `osascript`)
 - Slack webhook (if configured)
+- Email (if SMTP configured)
 
 ### Managing Schedules
 
@@ -350,15 +405,25 @@ hal9000 scheduler list
 # Add/update schedule
 hal9000 scheduler set agenda "0 6 * * *"
 
-# Disable schedule
-hal9000 scheduler disable agenda
+# Enable/disable
+hal9000 scheduler enable agenda
+hal9000 scheduler disable weekly-review
 
-# Run now (test)
+# Run task now (test)
 hal9000 scheduler run agenda
 
 # View logs
-hal9000 scheduler logs
+hal9000 scheduler logs [--tail=50]
 ```
+
+### Daemon Lifecycle
+
+The scheduler daemon:
+1. Reads `library/schedules/hal-scheduler.json` on start
+2. Watches for config changes (hot reload)
+3. Maintains PID file at `~/.hal9000/scheduler.pid`
+4. Logs to `library/logs/hal-scheduler.log`
+5. Graceful shutdown on SIGTERM/SIGINT
 
 ---
 
