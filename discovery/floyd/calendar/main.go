@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pearcec/hal9000/discovery/bowman"
 	"github.com/pearcec/hal9000/discovery/config"
+	evbus "github.com/pearcec/hal9000/discovery/events"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
@@ -32,13 +32,9 @@ const (
 	pollInterval    = 5 * time.Minute
 )
 
-// getBowmanConfig returns the storage configuration for calendar events.
-func getBowmanConfig() bowman.StoreConfig {
-	return bowman.StoreConfig{
-		LibraryPath: config.GetLibraryPath(),
-		Category:    "calendar",
-	}
-}
+// eventBus is the event bus for storage operations.
+// Floyd emits events here; storage subscriber handles persistence.
+var eventBus *evbus.Bus
 
 // Event represents a calendar change event emitted by Floyd (watcher).
 type Event struct {
@@ -56,6 +52,11 @@ type FloydState struct {
 
 func main() {
 	log.Println("[floyd][watcher] HAL 9000 Calendar Floyd initializing...")
+
+	// Initialize event bus with storage handler
+	eventBus = evbus.NewBus(100)
+	eventBus.Subscribe(evbus.StorageHandler(config.GetLibraryPath()))
+	defer eventBus.Close()
 
 	ctx := context.Background()
 
@@ -271,9 +272,15 @@ func watchCalendar(srv *calendar.Service, state FloydState) ([]Event, FloydState
 	// Detect deleted events
 	for id := range state.Events {
 		if !currentIDs[id] {
-			// Delete stored data via Bowman
-			if err := bowman.Delete(getBowmanConfig(), id); err != nil {
-				log.Printf("Error deleting event file: %v", err)
+			// Emit delete event
+			deleteEvent := evbus.StorageEvent{
+				Type:     evbus.EventDelete,
+				Source:   "google-calendar",
+				EventID:  id,
+				Category: "calendar",
+			}
+			if result := eventBus.Publish(deleteEvent); result.Error != nil {
+				log.Printf("Error deleting event file: %v", result.Error)
 			}
 			events = append(events, Event{
 				Source:    "google-calendar",
@@ -288,7 +295,7 @@ func watchCalendar(srv *calendar.Service, state FloydState) ([]Event, FloydState
 	return events, newState, nil
 }
 
-// storeCalendarEvent converts a Google Calendar event to a Bowman RawEvent and stores it.
+// storeCalendarEvent emits a storage event for a Google Calendar event.
 func storeCalendarEvent(item *calendar.Event) error {
 	// Extract date from event for the event ID (used in filename)
 	var fetchTime time.Time
@@ -300,11 +307,12 @@ func storeCalendarEvent(item *calendar.Event) error {
 		fetchTime = time.Now()
 	}
 
-	rawEvent := bowman.RawEvent{
+	storageEvent := evbus.StorageEvent{
+		Type:      evbus.EventStore,
 		Source:    "google-calendar",
 		EventID:   item.Id,
 		FetchedAt: fetchTime,
-		Stage:     "raw",
+		Category:  "calendar",
 		Data: map[string]interface{}{
 			"summary":        item.Summary,
 			"description":    item.Description,
@@ -322,8 +330,8 @@ func storeCalendarEvent(item *calendar.Event) error {
 		},
 	}
 
-	_, err := bowman.Store(getBowmanConfig(), rawEvent)
-	return err
+	result := eventBus.Publish(storageEvent)
+	return result.Error
 }
 
 // hashEvent creates a simple hash of event data to detect changes.

@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pearcec/hal9000/discovery/bowman"
 	"github.com/pearcec/hal9000/discovery/config"
+	evbus "github.com/pearcec/hal9000/discovery/events"
 )
 
 const (
@@ -64,35 +64,36 @@ type JIRAIssue struct {
 	Fields map[string]interface{} `json:"fields"`
 }
 
-// getBowmanConfig returns the storage configuration for JIRA issues.
-func getBowmanConfig() bowman.StoreConfig {
-	return bowman.StoreConfig{
-		LibraryPath: config.GetLibraryPath(),
-		Category:    "jira",
-	}
-}
+// eventBus is the event bus for storage operations.
+// Floyd emits events here; storage subscriber handles persistence.
+var eventBus *evbus.Bus
 
 func main() {
 	log.Println("[floyd][watcher] HAL 9000 JIRA Floyd initializing...")
 
+	// Initialize event bus with storage handler
+	eventBus = evbus.NewBus(100)
+	eventBus.Subscribe(evbus.StorageHandler(config.GetLibraryPath()))
+	defer eventBus.Close()
+
 	// Load config
-	config, err := loadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatalf("Unable to load config: %v", err)
 	}
 
-	log.Printf("[floyd][watcher] JIRA Floyd online. Watching: %s", config.JQL)
+	log.Printf("[floyd][watcher] JIRA Floyd online. Watching: %s", cfg.JQL)
 
 	// Load or initialize state
 	state := loadState()
 
 	// Run watch loop
 	for {
-		events, newState, err := watchJIRA(config, state)
+		changeEvents, newState, err := watchJIRA(cfg, state)
 		if err != nil {
 			log.Printf("Error watching JIRA: %v", err)
 		} else {
-			for _, event := range events {
+			for _, event := range changeEvents {
 				emitEvent(event)
 			}
 			state = newState
@@ -244,13 +245,14 @@ func searchJIRA(config *Config) ([]JIRAIssue, error) {
 	return result.Issues, nil
 }
 
-// storeJIRAIssue stores a JIRA issue via Bowman.
+// storeJIRAIssue emits a storage event for a JIRA issue.
 func storeJIRAIssue(issue JIRAIssue) error {
-	rawEvent := bowman.RawEvent{
+	storageEvent := evbus.StorageEvent{
+		Type:      evbus.EventStore,
 		Source:    "jira",
 		EventID:   issue.Key,
 		FetchedAt: time.Now(),
-		Stage:     "raw",
+		Category:  "jira",
 		Data: map[string]interface{}{
 			"id":     issue.ID,
 			"key":    issue.Key,
@@ -259,8 +261,8 @@ func storeJIRAIssue(issue JIRAIssue) error {
 		},
 	}
 
-	_, err := bowman.Store(getBowmanConfig(), rawEvent)
-	return err
+	result := eventBus.Publish(storageEvent)
+	return result.Error
 }
 
 // hashIssue creates a hash of issue data to detect changes.

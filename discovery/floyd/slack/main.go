@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pearcec/hal9000/discovery/bowman"
 	"github.com/pearcec/hal9000/discovery/config"
+	evbus "github.com/pearcec/hal9000/discovery/events"
 )
 
 const (
@@ -66,35 +66,36 @@ type SlackMessage struct {
 	Channel   string `json:"channel,omitempty"`
 }
 
-// getBowmanConfig returns the storage configuration for Slack messages.
-func getBowmanConfig() bowman.StoreConfig {
-	return bowman.StoreConfig{
-		LibraryPath: config.GetLibraryPath(),
-		Category:    "slack",
-	}
-}
+// eventBus is the event bus for storage operations.
+// Floyd emits events here; storage subscriber handles persistence.
+var eventBus *evbus.Bus
 
 func main() {
 	log.Println("[floyd][watcher] HAL 9000 Slack Floyd initializing...")
 
+	// Initialize event bus with storage handler
+	eventBus = evbus.NewBus(100)
+	eventBus.Subscribe(evbus.StorageHandler(config.GetLibraryPath()))
+	defer eventBus.Close()
+
 	// Load config
-	config, err := loadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatalf("Unable to load config: %v", err)
 	}
 
-	log.Printf("[floyd][watcher] Slack Floyd online. Watching %d channels", len(config.ChannelIDs))
+	log.Printf("[floyd][watcher] Slack Floyd online. Watching %d channels", len(cfg.ChannelIDs))
 
 	// Load or initialize state
 	state := loadState()
 
 	// Run watch loop
 	for {
-		events, newState, err := watchSlack(config, state)
+		changeEvents, newState, err := watchSlack(cfg, state)
 		if err != nil {
 			log.Printf("Error watching Slack: %v", err)
 		} else {
-			for _, event := range events {
+			for _, event := range changeEvents {
 				emitEvent(event)
 			}
 			state = newState
@@ -240,16 +241,14 @@ func getChannelHistory(token, channelID, oldestTS string) ([]SlackMessage, error
 	return result.Messages, nil
 }
 
-// storeSlackMessage stores a Slack message via Bowman.
+// storeSlackMessage emits a storage event for a Slack message.
 func storeSlackMessage(msg SlackMessage) error {
-	// Parse timestamp for date
-	fetchTime := time.Now()
-
-	rawEvent := bowman.RawEvent{
+	storageEvent := evbus.StorageEvent{
+		Type:      evbus.EventStore,
 		Source:    "slack",
 		EventID:   fmt.Sprintf("%s_%s", msg.Channel, msg.TS),
-		FetchedAt: fetchTime,
-		Stage:     "raw",
+		FetchedAt: time.Now(),
+		Category:  "slack",
 		Data: map[string]interface{}{
 			"type":      msg.Type,
 			"user":      msg.User,
@@ -260,8 +259,8 @@ func storeSlackMessage(msg SlackMessage) error {
 		},
 	}
 
-	_, err := bowman.Store(getBowmanConfig(), rawEvent)
-	return err
+	result := eventBus.Publish(storageEvent)
+	return result.Error
 }
 
 // loadState loads Floyd state from disk.
