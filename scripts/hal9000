@@ -1,0 +1,33 @@
+#!/bin/bash
+# HAL 9000 - Digital Assistant Launcher
+#
+# "I am putting myself to the fullest possible use, which is all I think
+# that any conscious entity can ever hope to do."
+#
+# This script launches Claude Code with HAL 9000 context.
+
+set -e
+
+# Find the hal9000 project directory
+HAL_DIR="${HAL9000_DIR:-$(dirname "$(dirname "$(realpath "$0")")")}"
+
+# Change to hal9000 directory
+cd "$HAL_DIR"
+
+# Get current time for greeting
+HOUR=$(date +%H)
+if [ "$HOUR" -lt 12 ]; then
+    TIME_OF_DAY="morning"
+elif [ "$HOUR" -lt 17 ]; then
+    TIME_OF_DAY="afternoon"
+else
+    TIME_OF_DAY="evening"
+fi
+
+# If no arguments, start with greeting prompt
+if [ $# -eq 0 ]; then
+    exec claude "[SESSION START] Good ${TIME_OF_DAY}, Dave. Greet me briefly as HAL 9000, then await instructions."
+else
+    # Pass arguments directly (e.g., hal9000 "create my agenda")
+    exec claude "$@"
+fi

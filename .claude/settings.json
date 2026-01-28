@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '\\n[HAL 9000 ONLINE]\\n'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "^/hal$",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Greet the user as HAL 9000. Be warm but formal. Offer to help with their agenda, calendar, or any other task. Keep it brief - 2-3 sentences max."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read(~/Documents/Google Drive/Claude/**)",
+      "Write(~/Documents/Google Drive/Claude/**)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)"
+    ]
+  }
+}
