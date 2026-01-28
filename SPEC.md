@@ -268,6 +268,98 @@ Two paths for things discussed:
 
 The act of building something IS the authorization.
 
+### Two Automation Layers
+
+| Layer | Purpose | Implementation | Runs As |
+|-------|---------|----------------|---------|
+| **Floyd/Bowman** | Watch & Fetch | Go daemons | Background processes |
+| **HAL Tasks** | Generate & Act | Scheduled Claude | Triggered invocations |
+
+### HAL Task Automation
+
+HAL tasks (agenda, weekly-review, etc.) are automated via the **HAL Scheduler**.
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────┐
+│  HAL Scheduler (launchd/cron)               │
+│  - Reads schedule from Library              │
+│  - Triggers hal9000 CLI at scheduled times  │
+│  - Logs results                             │
+└─────────────────┬───────────────────────────┘
+                  │ triggers
+                  ▼
+┌─────────────────────────────────────────────┐
+│  hal9000 <task> --automated                 │
+│  - Loads preferences                        │
+│  - Executes task                            │
+│  - Stores output in Library                 │
+│  - Sends notification if configured         │
+└─────────────────────────────────────────────┘
+```
+
+**Schedule Configuration:** `library/schedules/tasks.md`
+```markdown
+# HAL Task Schedules
+
+## Active Schedules
+
+| Task | Schedule | Enabled | Last Run |
+|------|----------|---------|----------|
+| agenda | 6:00 AM daily | yes | 2026-01-28 |
+| weekly-review | Friday 4:00 PM | yes | 2026-01-24 |
+| end-of-day | 5:00 PM weekdays | no | - |
+
+## Schedule Format
+
+Schedules use cron syntax:
+- `0 6 * * *` - 6 AM daily
+- `0 16 * * 5` - 4 PM Fridays
+- `0 17 * * 1-5` - 5 PM weekdays
+```
+
+**Scheduler Implementation:**
+
+1. **Install scheduler** (`hal9000 scheduler install`)
+   - Creates launchd plist (macOS) or cron entries
+   - Reads schedules from Library
+   - Sets up logging
+
+2. **Scheduler runs task** (at scheduled time)
+   ```bash
+   hal9000 <task> --automated --notify
+   ```
+   - `--automated` flag: non-interactive, use saved preferences
+   - `--notify` flag: send notification on completion
+
+3. **Results stored**
+   - Output: `library/<task>/<task>_YYYY-MM-DD.md`
+   - Log: `library/logs/scheduler_YYYY-MM-DD.log`
+
+**Notification Options:**
+- macOS notification center
+- Email (if configured)
+- Slack webhook (if configured)
+
+### Managing Schedules
+
+```bash
+# List scheduled tasks
+hal9000 scheduler list
+
+# Add/update schedule
+hal9000 scheduler set agenda "0 6 * * *"
+
+# Disable schedule
+hal9000 scheduler disable agenda
+
+# Run now (test)
+hal9000 scheduler run agenda
+
+# View logs
+hal9000 scheduler logs
+```
+
 ---
 
 ## Routine Model
