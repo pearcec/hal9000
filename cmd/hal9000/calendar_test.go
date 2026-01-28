@@ -154,6 +154,11 @@ func TestExpandPath(t *testing.T) {
 				if got[0] != '/' {
 					t.Errorf("expandPath(%q) = %q, want path starting with /", tt.path, got)
 				}
+			} else if tt.name == "Relative path" {
+				// Relative paths are now resolved from executable directory
+				if got[0] != '/' {
+					t.Errorf("expandPath(%q) = %q, want absolute path", tt.path, got)
+				}
 			} else if got != tt.want {
 				t.Errorf("expandPath(%q) = %q, want %q", tt.path, got, tt.want)
 			}

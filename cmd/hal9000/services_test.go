@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/pearcec/hal9000/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -147,52 +148,50 @@ func TestLoadServicesConfigDefault(t *testing.T) {
 }
 
 func TestLoadServicesConfigFromFile(t *testing.T) {
-	// Create temp directory
+	// Create temp directory as project directory
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
 
-	// Create config directory
-	configDir := filepath.Join(tmpDir, ".config", "hal9000")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	// Set up executable directory for testing (services.yaml is project-relative)
+	config.ResetForTesting()
+	config.SetExecutableDirForTesting(tmpDir)
+	defer config.ResetForTesting()
 
-	// Write test config
+	// Write test config to project directory
 	testConfig := `services:
   - name: custom-service
     command: /custom/cmd
     enabled: true
 `
-	configPath := filepath.Join(configDir, "services.yaml")
+	configPath := filepath.Join(tmpDir, "services.yaml")
 	if err := os.WriteFile(configPath, []byte(testConfig), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Load config
-	config, err := loadServicesConfig()
+	svcConfig, err := loadServicesConfig()
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if len(config.Services) != 1 {
-		t.Fatalf("expected 1 service, got %d", len(config.Services))
+	if len(svcConfig.Services) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(svcConfig.Services))
 	}
 
-	if config.Services[0].Name != "custom-service" {
-		t.Errorf("expected custom-service, got %s", config.Services[0].Name)
+	if svcConfig.Services[0].Name != "custom-service" {
+		t.Errorf("expected custom-service, got %s", svcConfig.Services[0].Name)
 	}
 }
 
 func TestSaveServicesConfig(t *testing.T) {
-	// Create temp directory
+	// Create temp directory as project directory
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
 
-	config := &ServicesConfig{
+	// Set up executable directory for testing (services.yaml is project-relative)
+	config.ResetForTesting()
+	config.SetExecutableDirForTesting(tmpDir)
+	defer config.ResetForTesting()
+
+	svcConfig := &ServicesConfig{
 		Services: []ServiceConfig{
 			{
 				Name:    "test",
@@ -202,12 +201,12 @@ func TestSaveServicesConfig(t *testing.T) {
 		},
 	}
 
-	if err := saveServicesConfig(config); err != nil {
+	if err := saveServicesConfig(svcConfig); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}
 
-	// Verify file exists
-	configPath := filepath.Join(tmpDir, ".config", "hal9000", "services.yaml")
+	// Verify file exists in project directory
+	configPath := filepath.Join(tmpDir, "services.yaml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		t.Error("config file was not created")
 	}

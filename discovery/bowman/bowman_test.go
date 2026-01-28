@@ -165,17 +165,22 @@ func TestExpandPath(t *testing.T) {
 	home, _ := os.UserHomeDir()
 
 	tests := []struct {
-		input    string
-		expected string
+		input         string
+		expected      string
+		checkAbsolute bool // for relative paths, just check it becomes absolute
 	}{
-		{"~/test", filepath.Join(home, "test")},
-		{"/absolute/path", "/absolute/path"},
-		{"relative/path", "relative/path"},
+		{"~/test", filepath.Join(home, "test"), false},
+		{"/absolute/path", "/absolute/path", false},
+		{"relative/path", "", true}, // relative paths should become absolute
 	}
 
 	for _, tt := range tests {
 		result := expandPath(tt.input)
-		if result != tt.expected {
+		if tt.checkAbsolute {
+			if !filepath.IsAbs(result) {
+				t.Errorf("expandPath(%q) = %q, want absolute path", tt.input, result)
+			}
+		} else if result != tt.expected {
 			t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, tt.expected)
 		}
 	}

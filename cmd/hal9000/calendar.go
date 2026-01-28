@@ -394,5 +394,9 @@ func expandPath(path string) string {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, path[2:])
 	}
+	// For relative paths, resolve from executable directory
+	if !filepath.IsAbs(path) {
+		return filepath.Join(config.GetExecutableDir(), path)
+	}
 	return path
 }

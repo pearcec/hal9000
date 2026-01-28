@@ -1,5 +1,6 @@
 // Package config provides configuration management for HAL 9000.
 // Configuration is loaded from ~/.config/hal9000/config.yaml with sensible defaults.
+// Project-relative paths (library, services) are resolved from the executable's directory.
 package config
 
 import (
@@ -9,6 +10,12 @@ import (
 	"sync"
 
 	"gopkg.in/yaml.v3"
+)
+
+var (
+	// executableDir caches the executable's directory
+	executableDir     string
+	executableDirOnce sync.Once
 )
 
 // Config holds the HAL 9000 configuration.
@@ -84,18 +91,38 @@ func GetLibraryPath() string {
 	return expandPath(cfg.Library.Path)
 }
 
+// GetExecutableDir returns the directory containing the hal9000 executable.
+// This is used as the base for project-relative paths (library, services).
+// The result is cached after the first call.
+func GetExecutableDir() string {
+	executableDirOnce.Do(func() {
+		execPath, err := os.Executable()
+		if err != nil {
+			// Fall back to current working directory
+			executableDir, _ = os.Getwd()
+			return
+		}
+		// Resolve symlinks to get the real executable location
+		execPath, err = filepath.EvalSymlinks(execPath)
+		if err != nil {
+			executableDir, _ = os.Getwd()
+			return
+		}
+		executableDir = filepath.Dir(execPath)
+	})
+	return executableDir
+}
+
 // expandPath expands ~ to home directory and resolves relative paths.
+// Relative paths are resolved from the executable's directory, not the cwd.
 func expandPath(path string) string {
 	if strings.HasPrefix(path, "~/") {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, path[2:])
 	}
-	// For relative paths, resolve to absolute
+	// For relative paths, resolve from executable directory
 	if !filepath.IsAbs(path) {
-		abs, err := filepath.Abs(path)
-		if err == nil {
-			return abs
-		}
+		return filepath.Join(GetExecutableDir(), path)
 	}
 	return path
 }
@@ -105,4 +132,13 @@ func ResetForTesting() {
 	configOnce = sync.Once{}
 	globalConfig = nil
 	configErr = nil
+	executableDirOnce = sync.Once{}
+	executableDir = ""
+}
+
+// SetExecutableDirForTesting allows tests to override the executable directory.
+func SetExecutableDirForTesting(dir string) {
+	executableDirOnce.Do(func() {
+		executableDir = dir
+	})
 }

@@ -178,7 +178,8 @@ func init() {
 // Path helpers
 
 func getServicesConfigPath() string {
-	return expandPath("~/.config/hal9000/services.yaml")
+	// Services config is project-relative (next to executable)
+	return expandPath("./services.yaml")
 }
 
 func getServicePIDPath(serviceName string) string {

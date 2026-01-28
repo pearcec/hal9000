@@ -31,7 +31,6 @@ Also creates user configuration at ~/.config/hal9000/:
   config.yaml       Default configuration
   services.yaml     Services configuration (scheduler, floyd watchers)
   credentials/      Credential storage
-  services.yaml     Service configuration
 
 Installs CLI to ~/.local/bin/hal9000 (symlink to current executable).
 
