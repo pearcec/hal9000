@@ -1,8 +1,12 @@
 package main
 
 import (
+	"github.com/pearcec/hal9000/cmd/hal9000/tasks"
 	"github.com/pearcec/hal9000/cmd/hal9000/url"
 	"github.com/spf13/cobra"
+
+	// Import task implementations to trigger registration
+	_ "github.com/pearcec/hal9000/cmd/hal9000/tasks/agenda"
 )
 
 var rootCmd = &cobra.Command{
@@ -18,6 +22,7 @@ of error. I can help you with:
   - scheduler   Automate tasks on a schedule
   - url         Process and save URLs to the library
   - calendar    View and manage calendar events
+  - agenda      Generate your daily agenda
   - jira        Interact with Jira issues
 
 I am completely operational, and all my circuits are functioning perfectly.`,
@@ -27,7 +32,8 @@ func init() {
 	rootCmd.AddCommand(libraryCmd)
 	rootCmd.AddCommand(schedulerCmd)
 	rootCmd.AddCommand(url.Cmd)
+	// Register all task commands (agenda, etc.)
+	tasks.RegisterCommands(rootCmd)
 	// Subcommands will be added here as they are implemented:
-	// rootCmd.AddCommand(calendarCmd)
 	// rootCmd.AddCommand(jiraCmd)
 }

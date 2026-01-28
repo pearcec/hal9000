@@ -138,8 +138,8 @@ func CreateCommand(task Task) *cobra.Command {
 	cmd.AddCommand(statusCmd)
 
 	// Make "run" the default when no subcommand is provided
-	cmd.Run = func(cmd *cobra.Command, args []string) {
-		runCmd.Run(cmd, args)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return runCmd.RunE(cmd, args)
 	}
 
 	return cmd
