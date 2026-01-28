@@ -29,10 +29,18 @@ Creates the following structure in the current directory:
 
 Also creates user configuration at ~/.config/hal9000/:
   config.yaml       Default configuration
+  services.yaml     Services configuration (scheduler, floyd watchers)
   credentials/      Credential storage
   services.yaml     Service configuration
 
 Installs CLI to ~/.local/bin/hal9000 (symlink to current executable).
+
+The services.yaml file is pre-configured with:
+  - Scheduler enabled (runs scheduled tasks)
+  - Floyd watchers disabled (enable after setting up credentials)
+  - Absolute paths to binaries based on current directory
+
+After init, run 'hal9000 services start' to start enabled services.
 
 This command is idempotent - safe to run multiple times.
 Existing files are never overwritten.`,
@@ -89,6 +97,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	configPath := filepath.Join(configDir, "config.yaml")
 	if err := createConfigIfNotExists(configPath, &created); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
+	}
+
+	// Create services config file if it doesn't exist
+	servicesPath := filepath.Join(configDir, "services.yaml")
+	if err := createServicesConfigIfNotExists(servicesPath, &created); err != nil {
+		return fmt.Errorf("failed to create services config: %w", err)
 	}
 
 	// Create ~/.local/bin and symlink hal9000
@@ -159,6 +173,76 @@ notifications:
 #   url: https://your-instance.atlassian.net
 `
 		if err := os.WriteFile(path, []byte(defaultConfig), 0644); err != nil {
+			return err
+		}
+		*created = append(*created, path)
+	}
+	return nil
+}
+
+func createServicesConfigIfNotExists(path string, created *[]string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// Detect project root (current working directory where init is run)
+		projectRoot, err := os.Getwd()
+		if err != nil {
+			projectRoot = "."
+		}
+
+		// Get absolute path for the project root
+		projectRoot, err = filepath.Abs(projectRoot)
+		if err != nil {
+			return fmt.Errorf("failed to get absolute path: %w", err)
+		}
+
+		// Build paths to binaries
+		hal9000Bin := filepath.Join(projectRoot, "hal9000")
+		calendarFloydBin := filepath.Join(projectRoot, "calendar-floyd")
+		jiraFloydBin := filepath.Join(projectRoot, "jira-floyd")
+		slackFloydBin := filepath.Join(projectRoot, "slack-floyd")
+
+		servicesConfig := fmt.Sprintf(`# HAL 9000 Services Configuration
+#
+# "I am putting myself to the fullest possible use, which is all I think
+# that any conscious entity can ever hope to do."
+#
+# This file configures HAL's background services.
+# Run 'hal9000 services start' to start enabled services.
+
+# Project root where binaries are located
+project_root: %s
+
+# HAL Scheduler - runs scheduled tasks
+scheduler:
+  enabled: true
+  binary: %s
+  args: ["scheduler", "start"]
+  # Runs tasks defined in library/schedules/hal-scheduler.json
+
+# Floyd Watchers - data collection services
+# These fetch data from external sources and store in the library.
+# Enable as needed after configuring credentials.
+
+floyd:
+  calendar:
+    enabled: false
+    binary: %s
+    interval: 15m
+    # Requires: ~/.config/hal9000/calendar-floyd-credentials.json
+
+  jira:
+    enabled: false
+    binary: %s
+    interval: 30m
+    # Requires: JIRA API token in credentials
+
+  slack:
+    enabled: false
+    binary: %s
+    interval: 5m
+    # Requires: Slack bot token in credentials
+`, projectRoot, hal9000Bin, calendarFloydBin, jiraFloydBin, slackFloydBin)
+
+		if err := os.WriteFile(path, []byte(servicesConfig), 0644); err != nil {
 			return err
 		}
 		*created = append(*created, path)

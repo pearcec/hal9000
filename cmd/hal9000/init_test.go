@@ -92,6 +92,71 @@ func TestCreateConfigIfNotExists(t *testing.T) {
 	}
 }
 
+func TestCreateServicesConfigIfNotExists(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "hal9000-services-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	var created []string
+
+	// Test creating a new services config file
+	servicesPath := filepath.Join(tmpDir, "services.yaml")
+	err = createServicesConfigIfNotExists(servicesPath, &created)
+	if err != nil {
+		t.Errorf("createServicesConfigIfNotExists failed: %v", err)
+	}
+
+	if len(created) != 1 {
+		t.Errorf("Expected 1 created item, got %d", len(created))
+	}
+
+	// Verify file exists and has content
+	content, err := os.ReadFile(servicesPath)
+	if err != nil {
+		t.Errorf("Failed to read services file: %v", err)
+	}
+
+	if len(content) == 0 {
+		t.Error("Services file is empty")
+	}
+
+	// Verify content includes expected sections
+	contentStr := string(content)
+	expectedSections := []string{
+		"project_root:",
+		"scheduler:",
+		"enabled: true",
+		"floyd:",
+		"calendar:",
+		"jira:",
+		"slack:",
+	}
+
+	for _, section := range expectedSections {
+		if !contains(contentStr, section) {
+			t.Errorf("Services config missing expected section: %s", section)
+		}
+	}
+
+	// Test idempotency - creating same file again
+	created = []string{}
+	err = createServicesConfigIfNotExists(servicesPath, &created)
+	if err != nil {
+		t.Errorf("createServicesConfigIfNotExists failed on second call: %v", err)
+	}
+
+	if len(created) != 0 {
+		t.Errorf("Expected 0 created items on idempotent call, got %d", len(created))
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && (s[:len(substr)] == substr || contains(s[1:], substr)))
+}
+
 func TestInitCreatesAllLibraryDirs(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "hal9000-init-full-test")
