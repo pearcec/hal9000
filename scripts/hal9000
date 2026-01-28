@@ -14,6 +14,11 @@ HAL_DIR="${HAL9000_DIR:-$(dirname "$(dirname "$(realpath "$0")")")}"
 # Change to hal9000 directory
 cd "$HAL_DIR"
 
+# Display HAL 9000 eye on startup
+if [ -f "$HAL_DIR/scripts/hal9000-eye.sh" ]; then
+    "$HAL_DIR/scripts/hal9000-eye.sh"
+fi
+
 # Get current time for greeting
 HOUR=$(date +%H)
 if [ "$HOUR" -lt 12 ]; then
