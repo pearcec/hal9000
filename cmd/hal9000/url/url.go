@@ -262,13 +262,24 @@ func saveToLibrary(url string, content *FetchResult, output string) (string, err
 		return "", err
 	}
 
+	// Check if this URL already exists in the library
+	existingFile := findExistingURL(libPath, url)
+	if existingFile != "" {
+		// Update existing file
+		fmt.Printf("Updating existing entry: %s\n", filepath.Base(existingFile))
+		if err := os.WriteFile(existingFile, []byte(output), 0644); err != nil {
+			return "", err
+		}
+		return existingFile, nil
+	}
+
 	// Generate filename: url_YYYY-MM-DD_{descriptor}.md
 	date := time.Now().Format("2006-01-02")
 	descriptor := generateDescriptor(content.Title, url)
 	filename := fmt.Sprintf("url_%s_%s.md", date, descriptor)
 	fullPath := filepath.Join(libPath, filename)
 
-	// Handle duplicate filenames
+	// Handle duplicate filenames (different URLs with same title/date)
 	if _, err := os.Stat(fullPath); err == nil {
 		// File exists, add a counter
 		for i := 2; i < 100; i++ {
@@ -285,6 +296,39 @@ func saveToLibrary(url string, content *FetchResult, output string) (string, err
 	}
 
 	return fullPath, nil
+}
+
+// findExistingURL searches the library for an existing entry with the same URL
+func findExistingURL(libPath, targetURL string) string {
+	entries, err := os.ReadDir(libPath)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		filePath := filepath.Join(libPath, entry.Name())
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			continue
+		}
+
+		// Look for **URL:** line and compare
+		for _, line := range strings.Split(string(content), "\n") {
+			if strings.HasPrefix(line, "**URL:**") {
+				fileURL := strings.TrimSpace(strings.TrimPrefix(line, "**URL:**"))
+				if fileURL == targetURL {
+					return filePath
+				}
+				break // Only check the first URL line
+			}
+		}
+	}
+
+	return ""
 }
 
 func generateDescriptor(title, url string) string {
