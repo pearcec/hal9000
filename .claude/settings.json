@@ -13,6 +13,15 @@
     ],
     "UserPromptSubmit": [
       {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hal9000 services status --check-only 2>/dev/null || echo '⚠️ [HAL ALERT] Service failure detected. Run: hal9000 services status'"
+          }
+        ]
+      },
+      {
         "matcher": "^/hal$",
         "hooks": [
           {
