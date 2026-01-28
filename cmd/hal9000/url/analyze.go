@@ -1,6 +1,7 @@
 package url
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -28,12 +29,36 @@ type URLPreferences struct {
 	DefaultTags         []string
 }
 
-// Analyze performs content analysis on fetched content
+// Analyze performs content analysis on fetched content.
+// It uses Claude API when credentials are available, falling back to basic
+// text analysis otherwise.
 func Analyze(content *FetchResult, prefs *URLPreferences) (*Analysis, error) {
 	analysis := &Analysis{
 		Title: content.Title,
 	}
 
+	// Try Claude API first if credentials are available
+	if IsClaudeAvailable() {
+		claudeResult, err := analyzeWithClaude(content.Body, content.Title, prefs)
+		if err == nil {
+			// Successfully got Claude analysis
+			if prefs.GenerateTags && len(claudeResult.Tags) > 0 {
+				analysis.Tags = claudeResult.Tags
+			}
+			if prefs.GenerateSummary && claudeResult.Summary != "" {
+				analysis.Summary = claudeResult.Summary
+			}
+			if prefs.GenerateTakes && len(claudeResult.Takes) > 0 {
+				analysis.Takes = claudeResult.Takes
+			}
+			return analysis, nil
+		} else {
+			// Claude failed, fall back to basic analysis
+			fmt.Printf("Note: Claude analysis failed (%v), using basic analysis\n", err)
+		}
+	}
+
+	// Fall back to basic text analysis
 	if prefs.GenerateTags {
 		analysis.Tags = extractTags(content.Body, prefs)
 	}
