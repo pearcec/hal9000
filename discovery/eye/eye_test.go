@@ -1,4 +1,4 @@
-package deacon
+package eye
 
 import (
 	"context"
@@ -11,16 +11,16 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	d := New(Config{})
+	e := New(Config{})
 
-	if d.config.PatrolInterval != DefaultPatrolInterval {
-		t.Errorf("PatrolInterval = %v, want %v", d.config.PatrolInterval, DefaultPatrolInterval)
+	if e.config.PatrolInterval != DefaultPatrolInterval {
+		t.Errorf("PatrolInterval = %v, want %v", e.config.PatrolInterval, DefaultPatrolInterval)
 	}
-	if d.config.StaleThreshold != DefaultStaleThreshold {
-		t.Errorf("StaleThreshold = %v, want %v", d.config.StaleThreshold, DefaultStaleThreshold)
+	if e.config.StaleThreshold != DefaultStaleThreshold {
+		t.Errorf("StaleThreshold = %v, want %v", e.config.StaleThreshold, DefaultStaleThreshold)
 	}
-	if d.config.HealthTimeout != DefaultHealthTimeout {
-		t.Errorf("HealthTimeout = %v, want %v", d.config.HealthTimeout, DefaultHealthTimeout)
+	if e.config.HealthTimeout != DefaultHealthTimeout {
+		t.Errorf("HealthTimeout = %v, want %v", e.config.HealthTimeout, DefaultHealthTimeout)
 	}
 }
 
@@ -31,57 +31,57 @@ func TestNewWithConfig(t *testing.T) {
 		HealthTimeout:  10 * time.Second,
 	}
 
-	d := New(config)
+	e := New(config)
 
-	if d.config.PatrolInterval != config.PatrolInterval {
-		t.Errorf("PatrolInterval = %v, want %v", d.config.PatrolInterval, config.PatrolInterval)
+	if e.config.PatrolInterval != config.PatrolInterval {
+		t.Errorf("PatrolInterval = %v, want %v", e.config.PatrolInterval, config.PatrolInterval)
 	}
 }
 
 func TestRegisterCallbackHandler(t *testing.T) {
-	d := New(Config{})
+	e := New(Config{})
 
 	handler := func(ctx context.Context, cb Callback) error {
 		return nil
 	}
 
-	d.RegisterCallbackHandler("test-source", handler)
+	e.RegisterCallbackHandler("test-source", handler)
 
-	if _, ok := d.callbackHandlers["test-source"]; !ok {
+	if _, ok := e.callbackHandlers["test-source"]; !ok {
 		t.Error("Expected handler to be registered")
 	}
 }
 
 func TestRegisterHealthChecker(t *testing.T) {
-	d := New(Config{})
+	e := New(Config{})
 
 	checker := func(ctx context.Context) HealthStatus {
 		return HealthStatus{Healthy: true}
 	}
 
-	d.RegisterHealthChecker("test-component", checker)
+	e.RegisterHealthChecker("test-component", checker)
 
-	if _, ok := d.healthCheckers["test-component"]; !ok {
+	if _, ok := e.healthCheckers["test-component"]; !ok {
 		t.Error("Expected health checker to be registered")
 	}
 }
 
 func TestRegisterCleaner(t *testing.T) {
-	d := New(Config{})
+	e := New(Config{})
 
 	cleaner := func(ctx context.Context, threshold time.Time) CleanupResult {
 		return CleanupResult{ItemsCleaned: 0}
 	}
 
-	d.RegisterCleaner("test-component", cleaner)
+	e.RegisterCleaner("test-component", cleaner)
 
-	if _, ok := d.cleaners["test-component"]; !ok {
+	if _, ok := e.cleaners["test-component"]; !ok {
 		t.Error("Expected cleaner to be registered")
 	}
 }
 
 func TestSubmitCallback(t *testing.T) {
-	d := New(Config{})
+	e := New(Config{})
 
 	cb := Callback{
 		Source:    "test",
@@ -89,45 +89,45 @@ func TestSubmitCallback(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	d.SubmitCallback(cb)
+	e.SubmitCallback(cb)
 
-	if len(d.callbackQueue) != 1 {
-		t.Errorf("Callback queue length = %d, want 1", len(d.callbackQueue))
+	if len(e.callbackQueue) != 1 {
+		t.Errorf("Callback queue length = %d, want 1", len(e.callbackQueue))
 	}
-	if d.callbackQueue[0].Source != "test" {
-		t.Errorf("Callback source = %q, want %q", d.callbackQueue[0].Source, "test")
+	if e.callbackQueue[0].Source != "test" {
+		t.Errorf("Callback source = %q, want %q", e.callbackQueue[0].Source, "test")
 	}
 }
 
 func TestStartStop(t *testing.T) {
-	d := New(Config{
+	e := New(Config{
 		PatrolInterval: 100 * time.Millisecond,
 	})
 
 	ctx := context.Background()
 
-	if err := d.Start(ctx); err != nil {
+	if err := e.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	if !d.IsRunning() {
-		t.Error("Expected deacon to be running")
+	if !e.IsRunning() {
+		t.Error("Expected eye to be running")
 	}
 
 	// Try starting again - should fail
-	if err := d.Start(ctx); err == nil {
-		t.Error("Expected error when starting already running deacon")
+	if err := e.Start(ctx); err == nil {
+		t.Error("Expected error when starting already running eye")
 	}
 
-	d.Stop()
+	e.Stop()
 
-	if d.IsRunning() {
-		t.Error("Expected deacon to be stopped")
+	if e.IsRunning() {
+		t.Error("Expected eye to be stopped")
 	}
 }
 
 func TestCallbackProcessing(t *testing.T) {
-	d := New(Config{
+	e := New(Config{
 		PatrolInterval: 50 * time.Millisecond,
 	})
 
@@ -137,21 +137,21 @@ func TestCallbackProcessing(t *testing.T) {
 		return nil
 	}
 
-	d.RegisterCallbackHandler("test-source", handler)
+	e.RegisterCallbackHandler("test-source", handler)
 
 	// Submit callbacks
-	d.SubmitCallback(Callback{Source: "test-source", Type: "event1", Timestamp: time.Now()})
-	d.SubmitCallback(Callback{Source: "test-source", Type: "event2", Timestamp: time.Now()})
+	e.SubmitCallback(Callback{Source: "test-source", Type: "event1", Timestamp: time.Now()})
+	e.SubmitCallback(Callback{Source: "test-source", Type: "event2", Timestamp: time.Now()})
 
 	ctx := context.Background()
-	if err := d.Start(ctx); err != nil {
+	if err := e.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	// Wait for patrol to process
 	time.Sleep(150 * time.Millisecond)
 
-	d.Stop()
+	e.Stop()
 
 	if atomic.LoadInt32(&callCount) != 2 {
 		t.Errorf("Call count = %d, want 2", callCount)
@@ -159,30 +159,30 @@ func TestCallbackProcessing(t *testing.T) {
 }
 
 func TestHealthChecks(t *testing.T) {
-	d := New(Config{
+	e := New(Config{
 		PatrolInterval: 50 * time.Millisecond,
 		HealthTimeout:  1 * time.Second,
 	})
 
-	d.RegisterHealthChecker("healthy-component", func(ctx context.Context) HealthStatus {
+	e.RegisterHealthChecker("healthy-component", func(ctx context.Context) HealthStatus {
 		return HealthStatus{Healthy: true, Message: "all good"}
 	})
 
-	d.RegisterHealthChecker("unhealthy-component", func(ctx context.Context) HealthStatus {
+	e.RegisterHealthChecker("unhealthy-component", func(ctx context.Context) HealthStatus {
 		return HealthStatus{Healthy: false, Message: "something wrong"}
 	})
 
 	ctx := context.Background()
-	if err := d.Start(ctx); err != nil {
+	if err := e.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	// Wait for patrol
 	time.Sleep(150 * time.Millisecond)
 
-	d.Stop()
+	e.Stop()
 
-	status := d.GetHealthStatus()
+	status := e.GetHealthStatus()
 
 	if len(status) != 2 {
 		t.Errorf("Health status count = %d, want 2", len(status))
@@ -198,7 +198,7 @@ func TestHealthChecks(t *testing.T) {
 }
 
 func TestCleanup(t *testing.T) {
-	d := New(Config{
+	e := New(Config{
 		PatrolInterval: 50 * time.Millisecond,
 		StaleThreshold: 24 * time.Hour,
 	})
@@ -206,21 +206,21 @@ func TestCleanup(t *testing.T) {
 	var cleanupCalled bool
 	var cleanupThreshold time.Time
 
-	d.RegisterCleaner("test-component", func(ctx context.Context, threshold time.Time) CleanupResult {
+	e.RegisterCleaner("test-component", func(ctx context.Context, threshold time.Time) CleanupResult {
 		cleanupCalled = true
 		cleanupThreshold = threshold
 		return CleanupResult{ItemsCleaned: 5, BytesFreed: 1024}
 	})
 
 	ctx := context.Background()
-	if err := d.Start(ctx); err != nil {
+	if err := e.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	// Wait for patrol
 	time.Sleep(150 * time.Millisecond)
 
-	d.Stop()
+	e.Stop()
 
 	if !cleanupCalled {
 		t.Error("Expected cleanup to be called")
@@ -235,19 +235,19 @@ func TestCleanup(t *testing.T) {
 }
 
 func TestCallbackFiles(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "deacon-test-*")
+	tmpDir, err := os.MkdirTemp("", "eye-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	d := New(Config{
+	e := New(Config{
 		PatrolInterval: 50 * time.Millisecond,
 		CallbackDir:    tmpDir,
 	})
 
 	var receivedCallbacks []Callback
-	d.RegisterCallbackHandler("file-source", func(ctx context.Context, cb Callback) error {
+	e.RegisterCallbackHandler("file-source", func(ctx context.Context, cb Callback) error {
 		receivedCallbacks = append(receivedCallbacks, cb)
 		return nil
 	})
@@ -266,14 +266,14 @@ func TestCallbackFiles(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := d.Start(ctx); err != nil {
+	if err := e.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	// Wait for patrols
 	time.Sleep(200 * time.Millisecond)
 
-	d.Stop()
+	e.Stop()
 
 	if len(receivedCallbacks) != 1 {
 		t.Errorf("Received %d callbacks, want 1", len(receivedCallbacks))
@@ -286,45 +286,45 @@ func TestCallbackFiles(t *testing.T) {
 }
 
 func TestLastPatrolTime(t *testing.T) {
-	d := New(Config{
+	e := New(Config{
 		PatrolInterval: 50 * time.Millisecond,
 	})
 
 	// Before start, should be zero
-	if !d.LastPatrolTime().IsZero() {
+	if !e.LastPatrolTime().IsZero() {
 		t.Error("Expected zero time before start")
 	}
 
 	ctx := context.Background()
-	if err := d.Start(ctx); err != nil {
+	if err := e.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	// Wait for patrol
 	time.Sleep(100 * time.Millisecond)
 
-	d.Stop()
+	e.Stop()
 
 	// After patrol, should be non-zero
-	if d.LastPatrolTime().IsZero() {
+	if e.LastPatrolTime().IsZero() {
 		t.Error("Expected non-zero time after patrol")
 	}
 
 	// Should be recent
-	elapsed := time.Since(d.LastPatrolTime())
+	elapsed := time.Since(e.LastPatrolTime())
 	if elapsed > 5*time.Second {
 		t.Errorf("Last patrol time too old: %v ago", elapsed)
 	}
 }
 
 func TestContextCancellation(t *testing.T) {
-	d := New(Config{
+	e := New(Config{
 		PatrolInterval: 1 * time.Hour, // Long interval so we control the test
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if err := d.Start(ctx); err != nil {
+	if err := e.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -335,9 +335,9 @@ func TestContextCancellation(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Should have stopped
-	if d.IsRunning() {
+	if e.IsRunning() {
 		// Force stop for cleanup
-		d.Stop()
+		e.Stop()
 	}
 }
 

@@ -1,11 +1,11 @@
-// Package deacon implements the Mayor's patrol daemon for HAL 9000.
+// Package eye implements the Mayor's patrol daemon for HAL 9000.
 // "Look Dave, I can see you're really upset about this. I honestly think
 // you ought to sit down calmly, take a stress pill, and think things over."
 //
-// The Deacon is the Mayor's patrol loop that handles callbacks from Floyd
+// The Eye is the Mayor's patrol loop that handles callbacks from Floyd
 // watchers, performs health checks on system components, and cleans up
 // stale data.
-package deacon
+package eye
 
 import (
 	"context"
@@ -64,7 +64,7 @@ type CleanupResult struct {
 // Cleaner performs cleanup for a component.
 type Cleaner func(ctx context.Context, threshold time.Time) CleanupResult
 
-// Config configures the Deacon patrol daemon.
+// Config configures the Eye patrol daemon.
 type Config struct {
 	PatrolInterval time.Duration
 	StaleThreshold time.Duration
@@ -72,8 +72,8 @@ type Config struct {
 	CallbackDir    string // Directory to watch for callback files
 }
 
-// Deacon is the Mayor's patrol daemon.
-type Deacon struct {
+// Eye is the Mayor's patrol daemon.
+type Eye struct {
 	config Config
 
 	// Registered handlers
@@ -94,8 +94,8 @@ type Deacon struct {
 	doneCh chan struct{}
 }
 
-// New creates a new Deacon patrol daemon.
-func New(config Config) *Deacon {
+// New creates a new Eye patrol daemon.
+func New(config Config) *Eye {
 	if config.PatrolInterval == 0 {
 		config.PatrolInterval = DefaultPatrolInterval
 	}
@@ -106,7 +106,7 @@ func New(config Config) *Deacon {
 		config.HealthTimeout = DefaultHealthTimeout
 	}
 
-	return &Deacon{
+	return &Eye{
 		config:           config,
 		callbackHandlers: make(map[string]CallbackHandler),
 		healthCheckers:   make(map[string]HealthChecker),
@@ -117,187 +117,187 @@ func New(config Config) *Deacon {
 }
 
 // RegisterCallbackHandler registers a handler for callbacks from a source.
-func (d *Deacon) RegisterCallbackHandler(source string, handler CallbackHandler) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.callbackHandlers[source] = handler
-	log.Printf("[deacon] Registered callback handler for source: %s", source)
+func (e *Eye) RegisterCallbackHandler(source string, handler CallbackHandler) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.callbackHandlers[source] = handler
+	log.Printf("[eye] Registered callback handler for source: %s", source)
 }
 
 // RegisterHealthChecker registers a health checker for a component.
-func (d *Deacon) RegisterHealthChecker(component string, checker HealthChecker) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.healthCheckers[component] = checker
-	log.Printf("[deacon] Registered health checker for component: %s", component)
+func (e *Eye) RegisterHealthChecker(component string, checker HealthChecker) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.healthCheckers[component] = checker
+	log.Printf("[eye] Registered health checker for component: %s", component)
 }
 
 // RegisterCleaner registers a cleaner for a component.
-func (d *Deacon) RegisterCleaner(component string, cleaner Cleaner) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.cleaners[component] = cleaner
-	log.Printf("[deacon] Registered cleaner for component: %s", component)
+func (e *Eye) RegisterCleaner(component string, cleaner Cleaner) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cleaners[component] = cleaner
+	log.Printf("[eye] Registered cleaner for component: %s", component)
 }
 
 // SubmitCallback queues a callback for processing.
-func (d *Deacon) SubmitCallback(cb Callback) {
-	d.callbackQueueMu.Lock()
-	defer d.callbackQueueMu.Unlock()
-	d.callbackQueue = append(d.callbackQueue, cb)
-	log.Printf("[deacon] Callback queued from source: %s, type: %s", cb.Source, cb.Type)
+func (e *Eye) SubmitCallback(cb Callback) {
+	e.callbackQueueMu.Lock()
+	defer e.callbackQueueMu.Unlock()
+	e.callbackQueue = append(e.callbackQueue, cb)
+	log.Printf("[eye] Callback queued from source: %s, type: %s", cb.Source, cb.Type)
 }
 
 // Start begins the patrol loop.
-func (d *Deacon) Start(ctx context.Context) error {
-	d.mu.Lock()
-	if d.running {
-		d.mu.Unlock()
-		return fmt.Errorf("deacon already running")
+func (e *Eye) Start(ctx context.Context) error {
+	e.mu.Lock()
+	if e.running {
+		e.mu.Unlock()
+		return fmt.Errorf("eye already running")
 	}
-	d.running = true
-	d.stopCh = make(chan struct{})
-	d.doneCh = make(chan struct{})
-	d.mu.Unlock()
+	e.running = true
+	e.stopCh = make(chan struct{})
+	e.doneCh = make(chan struct{})
+	e.mu.Unlock()
 
-	log.Println("[deacon] Starting patrol loop...")
+	log.Println("[eye] Starting patrol loop...")
 
-	go d.patrolLoop(ctx)
+	go e.patrolLoop(ctx)
 
 	return nil
 }
 
 // Stop halts the patrol loop.
-func (d *Deacon) Stop() {
-	d.mu.Lock()
-	if !d.running {
-		d.mu.Unlock()
+func (e *Eye) Stop() {
+	e.mu.Lock()
+	if !e.running {
+		e.mu.Unlock()
 		return
 	}
-	d.running = false
-	close(d.stopCh)
-	d.mu.Unlock()
+	e.running = false
+	close(e.stopCh)
+	e.mu.Unlock()
 
-	<-d.doneCh
-	log.Println("[deacon] Patrol loop stopped")
+	<-e.doneCh
+	log.Println("[eye] Patrol loop stopped")
 }
 
 // IsRunning returns whether the patrol loop is active.
-func (d *Deacon) IsRunning() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.running
+func (e *Eye) IsRunning() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.running
 }
 
 // GetHealthStatus returns the last known health status of all components.
-func (d *Deacon) GetHealthStatus() map[string]HealthStatus {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+func (e *Eye) GetHealthStatus() map[string]HealthStatus {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 
 	result := make(map[string]HealthStatus)
-	for k, v := range d.lastHealth {
+	for k, v := range e.lastHealth {
 		result[k] = v
 	}
 	return result
 }
 
 // LastPatrolTime returns when the last patrol completed.
-func (d *Deacon) LastPatrolTime() time.Time {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.lastPatrol
+func (e *Eye) LastPatrolTime() time.Time {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.lastPatrol
 }
 
 // patrolLoop is the main daemon loop.
-func (d *Deacon) patrolLoop(ctx context.Context) {
-	defer close(d.doneCh)
+func (e *Eye) patrolLoop(ctx context.Context) {
+	defer close(e.doneCh)
 
-	ticker := time.NewTicker(d.config.PatrolInterval)
+	ticker := time.NewTicker(e.config.PatrolInterval)
 	defer ticker.Stop()
 
 	// Run initial patrol immediately
-	d.patrol(ctx)
+	e.patrol(ctx)
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("[deacon] Context cancelled, stopping patrol")
+			log.Println("[eye] Context cancelled, stopping patrol")
 			return
-		case <-d.stopCh:
+		case <-e.stopCh:
 			return
 		case <-ticker.C:
-			d.patrol(ctx)
+			e.patrol(ctx)
 		}
 	}
 }
 
 // patrol performs one patrol cycle: callbacks, health checks, cleanup.
-func (d *Deacon) patrol(ctx context.Context) {
-	log.Println("[deacon] Patrol starting...")
+func (e *Eye) patrol(ctx context.Context) {
+	log.Println("[eye] Patrol starting...")
 	start := time.Now()
 
 	// 1. Process queued callbacks
-	d.processCallbacks(ctx)
+	e.processCallbacks(ctx)
 
 	// 2. Check callback directory for file-based callbacks
-	if d.config.CallbackDir != "" {
-		d.processCallbackFiles(ctx)
+	if e.config.CallbackDir != "" {
+		e.processCallbackFiles(ctx)
 	}
 
 	// 3. Run health checks
-	d.runHealthChecks(ctx)
+	e.runHealthChecks(ctx)
 
 	// 4. Run cleanup
-	d.runCleanup(ctx)
+	e.runCleanup(ctx)
 
-	d.mu.Lock()
-	d.lastPatrol = time.Now()
-	d.mu.Unlock()
+	e.mu.Lock()
+	e.lastPatrol = time.Now()
+	e.mu.Unlock()
 
-	log.Printf("[deacon] Patrol completed in %v", time.Since(start))
+	log.Printf("[eye] Patrol completed in %v", time.Since(start))
 }
 
 // processCallbacks handles queued callbacks.
-func (d *Deacon) processCallbacks(ctx context.Context) {
-	d.callbackQueueMu.Lock()
-	queue := d.callbackQueue
-	d.callbackQueue = make([]Callback, 0)
-	d.callbackQueueMu.Unlock()
+func (e *Eye) processCallbacks(ctx context.Context) {
+	e.callbackQueueMu.Lock()
+	queue := e.callbackQueue
+	e.callbackQueue = make([]Callback, 0)
+	e.callbackQueueMu.Unlock()
 
 	if len(queue) == 0 {
 		return
 	}
 
-	log.Printf("[deacon] Processing %d queued callbacks", len(queue))
+	log.Printf("[eye] Processing %d queued callbacks", len(queue))
 
-	d.mu.RLock()
+	e.mu.RLock()
 	handlers := make(map[string]CallbackHandler)
-	for k, v := range d.callbackHandlers {
+	for k, v := range e.callbackHandlers {
 		handlers[k] = v
 	}
-	d.mu.RUnlock()
+	e.mu.RUnlock()
 
 	for _, cb := range queue {
 		handler, ok := handlers[cb.Source]
 		if !ok {
-			log.Printf("[deacon] No handler for callback source: %s", cb.Source)
+			log.Printf("[eye] No handler for callback source: %s", cb.Source)
 			continue
 		}
 
 		if err := handler(ctx, cb); err != nil {
-			log.Printf("[deacon] Error handling callback from %s: %v", cb.Source, err)
+			log.Printf("[eye] Error handling callback from %s: %v", cb.Source, err)
 		}
 	}
 }
 
 // processCallbackFiles reads and processes callback files from the callback directory.
-func (d *Deacon) processCallbackFiles(ctx context.Context) {
-	dir := expandPath(d.config.CallbackDir)
+func (e *Eye) processCallbackFiles(ctx context.Context) {
+	dir := expandPath(e.config.CallbackDir)
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Printf("[deacon] Error reading callback directory: %v", err)
+			log.Printf("[eye] Error reading callback directory: %v", err)
 		}
 		return
 	}
@@ -310,41 +310,41 @@ func (d *Deacon) processCallbackFiles(ctx context.Context) {
 		path := filepath.Join(dir, entry.Name())
 		data, err := os.ReadFile(path)
 		if err != nil {
-			log.Printf("[deacon] Error reading callback file %s: %v", entry.Name(), err)
+			log.Printf("[eye] Error reading callback file %s: %v", entry.Name(), err)
 			continue
 		}
 
 		var cb Callback
 		if err := json.Unmarshal(data, &cb); err != nil {
-			log.Printf("[deacon] Error parsing callback file %s: %v", entry.Name(), err)
+			log.Printf("[eye] Error parsing callback file %s: %v", entry.Name(), err)
 			continue
 		}
 
-		d.SubmitCallback(cb)
+		e.SubmitCallback(cb)
 
 		// Remove processed file
 		if err := os.Remove(path); err != nil {
-			log.Printf("[deacon] Error removing callback file %s: %v", entry.Name(), err)
+			log.Printf("[eye] Error removing callback file %s: %v", entry.Name(), err)
 		}
 	}
 }
 
 // runHealthChecks executes all registered health checkers.
-func (d *Deacon) runHealthChecks(ctx context.Context) {
-	d.mu.RLock()
+func (e *Eye) runHealthChecks(ctx context.Context) {
+	e.mu.RLock()
 	checkers := make(map[string]HealthChecker)
-	for k, v := range d.healthCheckers {
+	for k, v := range e.healthCheckers {
 		checkers[k] = v
 	}
-	d.mu.RUnlock()
+	e.mu.RUnlock()
 
 	if len(checkers) == 0 {
 		return
 	}
 
-	log.Printf("[deacon] Running %d health checks", len(checkers))
+	log.Printf("[eye] Running %d health checks", len(checkers))
 
-	healthCtx, cancel := context.WithTimeout(ctx, d.config.HealthTimeout)
+	healthCtx, cancel := context.WithTimeout(ctx, e.config.HealthTimeout)
 	defer cancel()
 
 	results := make(map[string]HealthStatus)
@@ -371,30 +371,30 @@ func (d *Deacon) runHealthChecks(ctx context.Context) {
 	for status := range resultCh {
 		results[status.Component] = status
 		if !status.Healthy {
-			log.Printf("[deacon] Health check FAILED: %s - %s", status.Component, status.Message)
+			log.Printf("[eye] Health check FAILED: %s - %s", status.Component, status.Message)
 		}
 	}
 
-	d.mu.Lock()
-	d.lastHealth = results
-	d.mu.Unlock()
+	e.mu.Lock()
+	e.lastHealth = results
+	e.mu.Unlock()
 }
 
 // runCleanup executes all registered cleaners.
-func (d *Deacon) runCleanup(ctx context.Context) {
-	d.mu.RLock()
+func (e *Eye) runCleanup(ctx context.Context) {
+	e.mu.RLock()
 	cleaners := make(map[string]Cleaner)
-	for k, v := range d.cleaners {
+	for k, v := range e.cleaners {
 		cleaners[k] = v
 	}
-	d.mu.RUnlock()
+	e.mu.RUnlock()
 
 	if len(cleaners) == 0 {
 		return
 	}
 
-	threshold := time.Now().Add(-d.config.StaleThreshold)
-	log.Printf("[deacon] Running cleanup for data older than %v", threshold.Format(time.RFC3339))
+	threshold := time.Now().Add(-e.config.StaleThreshold)
+	log.Printf("[eye] Running cleanup for data older than %v", threshold.Format(time.RFC3339))
 
 	for component, cleaner := range cleaners {
 		result := cleaner(ctx, threshold)
@@ -402,9 +402,9 @@ func (d *Deacon) runCleanup(ctx context.Context) {
 		result.CleanedAt = time.Now()
 
 		if result.Error != "" {
-			log.Printf("[deacon] Cleanup error for %s: %s", component, result.Error)
+			log.Printf("[eye] Cleanup error for %s: %s", component, result.Error)
 		} else if result.ItemsCleaned > 0 {
-			log.Printf("[deacon] Cleaned %d items (%d bytes) from %s",
+			log.Printf("[eye] Cleaned %d items (%d bytes) from %s",
 				result.ItemsCleaned, result.BytesFreed, component)
 		}
 	}
