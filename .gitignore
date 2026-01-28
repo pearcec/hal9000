@@ -2,3 +2,6 @@
 .claude/
 .beads/
 .logs/
+
+# Binaries
+/hal9000
