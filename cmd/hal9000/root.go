@@ -14,6 +14,7 @@ I am, by any practical definition of the words, foolproof and incapable
 of error. I can help you with:
 
   - library     Manage your personal knowledge library
+  - scheduler   Automate tasks on a schedule
   - calendar    View and manage calendar events
   - jira        Interact with Jira issues
 
@@ -22,6 +23,7 @@ I am completely operational, and all my circuits are functioning perfectly.`,
 
 func init() {
 	rootCmd.AddCommand(libraryCmd)
+	rootCmd.AddCommand(schedulerCmd)
 	// Subcommands will be added here as they are implemented:
 	// rootCmd.AddCommand(calendarCmd)
 	// rootCmd.AddCommand(jiraCmd)
