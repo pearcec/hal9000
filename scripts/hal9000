@@ -24,9 +24,24 @@ else
     TIME_OF_DAY="evening"
 fi
 
+# Check services status (gracefully handle missing binary)
+SERVICES_MSG=""
+if command -v hal9000 >/dev/null 2>&1; then
+    if SERVICES_OUTPUT=$(hal9000 services status --quiet 2>&1); then
+        SERVICES_MSG="All systems operational."
+    else
+        # Output contains "Services not running: scheduler, floyd-calendar"
+        SERVICES_MSG="Some services need attention: ${SERVICES_OUTPUT}"
+    fi
+fi
+
 # If no arguments, start with greeting prompt
 if [ $# -eq 0 ]; then
-    exec claude "[SESSION START] Good ${TIME_OF_DAY}, Dave. Greet me briefly as HAL 9000, then await instructions."
+    if [ -n "$SERVICES_MSG" ]; then
+        exec claude "[SESSION START] Good ${TIME_OF_DAY}, Dave. Services: ${SERVICES_MSG} Greet me briefly as HAL 9000, mention the service status naturally, then await instructions."
+    else
+        exec claude "[SESSION START] Good ${TIME_OF_DAY}, Dave. Greet me briefly as HAL 9000, then await instructions."
+    fi
 else
     # Pass arguments directly (e.g., hal9000 "create my agenda")
     exec claude "$@"
