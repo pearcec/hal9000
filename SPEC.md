@@ -270,6 +270,142 @@ The act of building something IS the authorization.
 
 ---
 
+## Routine Model
+
+HAL executes **routines** - defined capabilities that can be triggered manually or automatically.
+Similar to Gas Town formulas, but for personal assistant tasks.
+
+### Anatomy of a Routine
+
+```
+routine:
+  id: daily-agenda
+  name: "Create Daily Agenda"
+  description: "Generate prioritized agenda for the day"
+
+  triggers:
+    - type: scheduled
+      cron: "0 6 * * *"      # 6am daily
+    - type: manual
+      command: "agenda"       # hal9000 agenda
+
+  preferences_key: "agenda"   # Look up in library/preferences/agenda.md
+
+  steps:
+    - collect-calendar
+    - collect-jira
+    - collect-rollover
+    - collect-reminders
+    - deduplicate
+    - prioritize
+    - format-output
+    - store-agenda
+
+  output:
+    type: markdown
+    path: "agenda/agenda_{{date}}_daily-agenda.md"
+```
+
+### Preferences
+
+Preferences are stored in the Library and influence how routines execute.
+They can be updated via conversation ("I want my agenda to show meetings first").
+
+**Storage:** `library/preferences/{routine-id}.md`
+
+**Example: Agenda Preferences**
+```markdown
+# Agenda Preferences
+
+## Structure
+- Show calendar blocks first (time-anchored items)
+- Then prioritized tasks (max 5 highlighted)
+- Then follow-ups by person
+- Include "parking lot" section for deferred items
+
+## Priority Rules
+- Meetings with external attendees = high priority
+- Items with deadlines today = high priority
+- Rolled-over items (3+ days) = flag for attention
+
+## Exclusions
+- Don't show all-day "OOO" events
+- Don't show declined meetings
+
+## Format
+- Use emoji markers: 🔥 overdue, ⭐ priority, 🔄 rollover, 🔁 routine
+- Include prep notes for meetings when available
+- Link to JIRA tickets when referenced
+```
+
+### Preference Updates via Conversation
+
+When user expresses a preference:
+1. HAL acknowledges the preference
+2. HAL updates `library/preferences/{routine}.md`
+3. Change takes effect on next routine execution
+
+**Example conversation:**
+> User: "Don't include routine items in my agenda anymore"
+> HAL: "Got it. I'll exclude routine items from future agendas. You can still
+>       see them by asking 'show routine items' if needed."
+
+### Trigger Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `scheduled` | Cron-based automation | Daily at 6am |
+| `manual` | User invokes via command | `hal9000 agenda` |
+| `event` | Triggered by system event | New calendar invite |
+| `condition` | Triggered when condition met | "If overdue items > 3" |
+
+### Built-in Routines
+
+| Routine | Description | Default Trigger |
+|---------|-------------|-----------------|
+| `daily-agenda` | Generate prioritized daily agenda | 6am daily + manual |
+| `weekly-review` | Summarize week, prep for next | Friday 4pm |
+| `meeting-prep` | Context for upcoming meeting | 15min before meeting |
+| `person-brief` | Context on a person before 1:1 | Manual |
+| `end-of-day` | Capture loose ends, plan tomorrow | 5pm daily |
+
+### Routine Registration
+
+Routines are registered in the Library:
+```
+library/
+├── routines/
+│   ├── daily-agenda.routine.md
+│   ├── weekly-review.routine.md
+│   └── meeting-prep.routine.md
+├── preferences/
+│   ├── agenda.md
+│   ├── weekly-review.md
+│   └── meeting-prep.md
+```
+
+### Runtime Execution
+
+When a routine runs:
+1. Load routine definition from `library/routines/`
+2. Load preferences from `library/preferences/`
+3. Collect data per routine steps (Floyd/Bowman)
+4. Process data per routine logic (Processor)
+5. Format output per preferences
+6. Store result in Library
+7. Notify user if configured
+
+### Dynamic Modification
+
+Routines can be influenced at runtime via prompts:
+- "Create my agenda but focus on the vendor meeting"
+- "Skip JIRA items today, I'm on PTO"
+- "Include items from the Chicago trip list"
+
+These are **one-time overrides**, not preference changes.
+
+---
+
 ## Advisor Mode (The 20%)
 
 **Triggers:**
@@ -294,3 +430,7 @@ The act of building something IS the authorization.
 - Event payload reference format
 - Specific daemon/floyd implementations
 - Bronze → Silver transform rules per source type
+- Routine definition format (TOML like GT formulas, or Markdown?)
+- How does `hal9000` CLI integrate with routine execution?
+- Should preferences support inheritance/composition? (base + overrides)
+- Condition-based triggers: how to express and evaluate conditions?

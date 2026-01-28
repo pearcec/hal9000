@@ -1,0 +1,59 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: discovery/go.sum
+
+      - name: Download dependencies
+        working-directory: discovery
+        run: go mod download
+
+      - name: Run tests
+        working-directory: discovery
+        run: go test -v -race -coverprofile=coverage.out ./bowman ./lmc ./processor
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: discovery/coverage.out
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: discovery/go.sum
+
+      - name: Build floyd binaries
+        working-directory: discovery
+        run: |
+          go build -o bin/calendar-floyd ./floyd/calendar
+          go build -o bin/jira-floyd ./floyd/jira
+          go build -o bin/slack-floyd ./floyd/slack
+
+      - name: Verify builds
+        run: |
+          ls -la discovery/bin/
