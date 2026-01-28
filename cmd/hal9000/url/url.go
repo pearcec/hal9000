@@ -144,8 +144,9 @@ func runURL(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Default: Claude analysis
-	filename, err := GenerateAndSaveWithClaude(url, content, prefs, dryRun)
+	// Default: Claude analysis - pass raw preferences for flexibility
+	rawPrefs := loadRawPreferences()
+	filename, err := GenerateAndSaveWithClaude(url, content, rawPrefs, dryRun)
 	if err != nil {
 		// Fall back to basic analysis if Claude fails
 		fmt.Printf("Warning: Claude analysis failed (%v), falling back to basic analysis\n", err)
@@ -183,6 +184,16 @@ func loadPreferences() (*URLPreferences, error) {
 	}
 
 	return parsePreferences(string(content))
+}
+
+// loadRawPreferences returns the preferences file as raw text for Claude to interpret
+func loadRawPreferences() string {
+	prefsPath := getPreferencesPath()
+	content, err := os.ReadFile(prefsPath)
+	if err != nil {
+		return ""
+	}
+	return string(content)
 }
 
 func getPreferencesPath() string {

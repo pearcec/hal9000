@@ -14,8 +14,8 @@ import (
 )
 
 // ClaudeAnalysis invokes Claude to analyze URL content
-func ClaudeAnalysis(url string, content *FetchResult, prefs *URLPreferences) (*Analysis, error) {
-	prompt := buildAnalysisPrompt(url, content, prefs)
+func ClaudeAnalysis(url string, content *FetchResult, rawPreferences string) (*Analysis, error) {
+	prompt := buildAnalysisPrompt(url, content, rawPreferences)
 
 	// Invoke claude CLI with -p flag for non-interactive output
 	// The prompt is passed as a positional argument after -p
@@ -48,69 +48,57 @@ func ClaudeAnalysis(url string, content *FetchResult, prefs *URLPreferences) (*A
 	return analysis, nil
 }
 
-func buildAnalysisPrompt(url string, content *FetchResult, prefs *URLPreferences) string {
+func buildAnalysisPrompt(url string, content *FetchResult, rawPreferences string) string {
 	var sb strings.Builder
 
-	// Instructions from CLAUDE.md pattern
-	sb.WriteString("You are HAL 9000, processing a URL for the library.\n\n")
+	sb.WriteString("You are HAL 9000, processing a URL for the knowledge library.\n\n")
 
 	sb.WriteString("## Task\n")
-	sb.WriteString("Analyze the following web content and provide:\n")
-	sb.WriteString("1. **Tags**: 5-8 relevant topic tags (lowercase, single words or hyphenated)\n")
-	sb.WriteString("2. **Summary**: 2-3 sentence summary of the content\n")
-	sb.WriteString("3. **Takes**: 3-4 key insights or takeaways as bullet points\n\n")
+	sb.WriteString("Analyze the web content below and generate a markdown document for the library.\n\n")
 
-	// Include user preferences if available
-	if prefs != nil {
+	sb.WriteString("## Default Output Sections\n")
+	sb.WriteString("Unless preferences specify otherwise, include:\n")
+	sb.WriteString("- **Tags**: 5-8 relevant topic tags (lowercase, hyphenated)\n")
+	sb.WriteString("- **Summary**: 2-3 sentence summary\n")
+	sb.WriteString("- **Key Takes**: 3-4 key insights as bullet points\n\n")
+
+	// Include raw user preferences - Claude interprets them
+	if rawPreferences != "" {
 		sb.WriteString("## User Preferences\n")
-		if len(prefs.TagCategories) > 0 {
-			sb.WriteString(fmt.Sprintf("- Preferred tag categories: %s\n", strings.Join(prefs.TagCategories, ", ")))
-		}
-		if len(prefs.ExcludePatterns) > 0 {
-			sb.WriteString(fmt.Sprintf("- Exclude patterns: %s\n", strings.Join(prefs.ExcludePatterns, ", ")))
-		}
-		if !prefs.GenerateTags {
-			sb.WriteString("- Skip tags generation\n")
-		}
-		if !prefs.GenerateSummary {
-			sb.WriteString("- Skip summary generation\n")
-		}
-		if !prefs.GenerateTakes {
-			sb.WriteString("- Skip takes generation\n")
-		}
-		sb.WriteString("\n")
+		sb.WriteString("IMPORTANT: Follow these preferences exactly. They override defaults.\n\n")
+		sb.WriteString(rawPreferences)
+		sb.WriteString("\n\n")
 	}
 
 	// URL and content
-	sb.WriteString("## URL\n")
+	sb.WriteString("## URL Being Processed\n")
 	sb.WriteString(url + "\n\n")
 
-	sb.WriteString("## Title\n")
+	sb.WriteString("## Page Title\n")
 	sb.WriteString(content.Title + "\n\n")
 
-	sb.WriteString("## Content\n")
-	// Truncate content if too long
+	sb.WriteString("## Page Content\n")
 	body := content.Body
-	maxLen := 8000
-	if prefs != nil && prefs.MaxContentLength > 0 {
-		maxLen = prefs.MaxContentLength
-	}
-	if len(body) > maxLen {
-		body = body[:maxLen] + "\n[Content truncated...]"
+	if len(body) > 8000 {
+		body = body[:8000] + "\n[Content truncated...]"
 	}
 	sb.WriteString(body + "\n\n")
 
-	// Output format instructions
-	sb.WriteString("## Required Output Format\n")
-	sb.WriteString("Respond with EXACTLY this format (no extra text):\n\n")
+	// Output format - flexible markdown
+	sb.WriteString("## Output Format\n")
+	sb.WriteString("Generate clean markdown. Start with:\n")
 	sb.WriteString("```\n")
-	sb.WriteString("TAGS: tag1, tag2, tag3, tag4, tag5\n")
-	sb.WriteString("SUMMARY: Your 2-3 sentence summary here.\n")
-	sb.WriteString("TAKES:\n")
-	sb.WriteString("- First key insight\n")
-	sb.WriteString("- Second key insight\n")
-	sb.WriteString("- Third key insight\n")
-	sb.WriteString("```\n")
+	sb.WriteString("TAGS: tag1, tag2, tag3, ...\n")
+	sb.WriteString("\n")
+	sb.WriteString("## Summary\n")
+	sb.WriteString("Your summary here.\n")
+	sb.WriteString("\n")
+	sb.WriteString("## Key Takes\n")
+	sb.WriteString("- Insight one\n")
+	sb.WriteString("- Insight two\n")
+	sb.WriteString("```\n\n")
+	sb.WriteString("Add any additional sections the user preferences request (e.g., Manager Notes).\n")
+	sb.WriteString("Output ONLY the markdown content, no explanations.\n")
 
 	return sb.String()
 }
@@ -121,13 +109,17 @@ func parseClaudeResponse(response string, fallbackTitle string) *Analysis {
 	}
 
 	lines := strings.Split(response, "\n")
+	var extraSections []string
+	inExtraSection := false
+	currentSection := ""
+	takesEndLine := 0
 
 	for i, line := range lines {
-		line = strings.TrimSpace(line)
+		trimmed := strings.TrimSpace(line)
 
-		// Handle various tag formats
-		if strings.HasPrefix(line, "TAGS:") || strings.HasPrefix(line, "**Tags:**") || strings.HasPrefix(line, "Tags:") {
-			tagsStr := line
+		// Handle tags
+		if strings.HasPrefix(trimmed, "TAGS:") || strings.HasPrefix(trimmed, "**Tags:**") || strings.HasPrefix(trimmed, "Tags:") {
+			tagsStr := trimmed
 			tagsStr = strings.TrimPrefix(tagsStr, "TAGS:")
 			tagsStr = strings.TrimPrefix(tagsStr, "**Tags:**")
 			tagsStr = strings.TrimPrefix(tagsStr, "Tags:")
@@ -139,30 +131,71 @@ func parseClaudeResponse(response string, fallbackTitle string) *Analysis {
 					analysis.Tags = append(analysis.Tags, tag)
 				}
 			}
-		} else if strings.HasPrefix(line, "SUMMARY:") || strings.HasPrefix(line, "**Summary:**") || strings.HasPrefix(line, "Summary:") {
-			summaryStr := line
-			summaryStr = strings.TrimPrefix(summaryStr, "SUMMARY:")
-			summaryStr = strings.TrimPrefix(summaryStr, "**Summary:**")
-			summaryStr = strings.TrimPrefix(summaryStr, "Summary:")
-			analysis.Summary = strings.TrimSpace(summaryStr)
-		} else if strings.HasPrefix(line, "TAKES:") || strings.HasPrefix(line, "**Key Takes:**") || strings.HasPrefix(line, "Key Takes:") || strings.HasPrefix(line, "**Takes:**") {
-			// Read subsequent lines starting with "-"
-			for j := i + 1; j < len(lines); j++ {
-				takeLine := strings.TrimSpace(lines[j])
-				if strings.HasPrefix(takeLine, "- ") || strings.HasPrefix(takeLine, "* ") {
-					take := strings.TrimPrefix(takeLine, "- ")
-					take = strings.TrimPrefix(take, "* ")
-					take = strings.TrimPrefix(take, "**")
-					take = strings.TrimSuffix(take, "**")
-					analysis.Takes = append(analysis.Takes, take)
-				} else if takeLine == "```" || takeLine == "" {
-					continue
-				} else if !strings.HasPrefix(takeLine, "-") && !strings.HasPrefix(takeLine, "*") && takeLine != "" {
-					break
+			continue
+		}
+
+		// Handle summary section
+		if strings.HasPrefix(trimmed, "## Summary") || strings.HasPrefix(trimmed, "SUMMARY:") {
+			currentSection = "summary"
+			if strings.HasPrefix(trimmed, "SUMMARY:") {
+				analysis.Summary = strings.TrimSpace(strings.TrimPrefix(trimmed, "SUMMARY:"))
+			}
+			continue
+		}
+
+		// Handle takes/key takes section
+		if strings.HasPrefix(trimmed, "## Key Takes") || strings.HasPrefix(trimmed, "TAKES:") || strings.HasPrefix(trimmed, "## Takes") {
+			currentSection = "takes"
+			continue
+		}
+
+		// Detect other ## sections (manager notes, etc.)
+		if strings.HasPrefix(trimmed, "## ") && currentSection != "" {
+			header := strings.TrimPrefix(trimmed, "## ")
+			headerLower := strings.ToLower(header)
+			if headerLower != "summary" && headerLower != "key takes" && headerLower != "takes" && headerLower != "content" {
+				// This is an extra section Claude generated
+				currentSection = "extra"
+				inExtraSection = true
+				takesEndLine = i
+				extraSections = append(extraSections, line)
+				continue
+			}
+			if headerLower == "content" {
+				// Stop processing - content section is added separately
+				break
+			}
+		}
+
+		// Accumulate content based on current section
+		switch currentSection {
+		case "summary":
+			if trimmed != "" && !strings.HasPrefix(trimmed, "##") && trimmed != "```" {
+				if analysis.Summary != "" {
+					analysis.Summary += " "
 				}
+				analysis.Summary += trimmed
+			}
+		case "takes":
+			if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
+				take := strings.TrimPrefix(trimmed, "- ")
+				take = strings.TrimPrefix(take, "* ")
+				analysis.Takes = append(analysis.Takes, take)
+			}
+		case "extra":
+			if inExtraSection {
+				extraSections = append(extraSections, line)
 			}
 		}
 	}
+
+	// Combine extra sections
+	if len(extraSections) > 0 {
+		analysis.RawExtra = strings.Join(extraSections, "\n")
+	}
+
+	// If we didn't find anything, mark where takes ended for debugging
+	_ = takesEndLine
 
 	return analysis
 }
@@ -245,16 +278,16 @@ func parseConversationalResponse(response string, fallbackTitle string) *Analysi
 }
 
 // GenerateAndSaveWithClaude performs full URL processing with Claude
-func GenerateAndSaveWithClaude(url string, content *FetchResult, prefs *URLPreferences, dryRun bool) (string, error) {
+func GenerateAndSaveWithClaude(url string, content *FetchResult, rawPreferences string, dryRun bool) (string, error) {
 	fmt.Println("Analyzing with Claude...")
 
-	analysis, err := ClaudeAnalysis(url, content, prefs)
+	analysis, err := ClaudeAnalysis(url, content, rawPreferences)
 	if err != nil {
 		return "", fmt.Errorf("Claude analysis failed: %w", err)
 	}
 
-	// Generate output markdown
-	output := generateOutputMarkdown(url, content, analysis, prefs)
+	// Generate output markdown using Claude's analysis
+	output := generateOutputFromAnalysis(url, content, analysis)
 
 	if dryRun {
 		fmt.Println("\n--- DRY RUN: Would save the following ---")
@@ -262,11 +295,11 @@ func GenerateAndSaveWithClaude(url string, content *FetchResult, prefs *URLPrefe
 		return "", nil
 	}
 
-	// Save to library
+	// Save to library (with duplicate detection)
 	return saveToLibraryPath(url, content, output)
 }
 
-func generateOutputMarkdown(url string, content *FetchResult, analysis *Analysis, prefs *URLPreferences) string {
+func generateOutputFromAnalysis(url string, content *FetchResult, analysis *Analysis) string {
 	var sb strings.Builder
 
 	title := analysis.Title
@@ -277,22 +310,26 @@ func generateOutputMarkdown(url string, content *FetchResult, analysis *Analysis
 		title = "Untitled"
 	}
 
+	// Header
 	sb.WriteString(fmt.Sprintf("# %s\n\n", title))
 	sb.WriteString(fmt.Sprintf("**URL:** %s\n", url))
 	sb.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02")))
 
+	// Tags from analysis
 	if len(analysis.Tags) > 0 {
 		sb.WriteString(fmt.Sprintf("**Tags:** %s\n", strings.Join(analysis.Tags, ", ")))
 	}
 
 	sb.WriteString("\n")
 
+	// Claude-generated summary
 	if analysis.Summary != "" {
 		sb.WriteString("## Summary\n\n")
 		sb.WriteString(analysis.Summary)
 		sb.WriteString("\n\n")
 	}
 
+	// Claude-generated takes
 	if len(analysis.Takes) > 0 {
 		sb.WriteString("## Key Takes\n\n")
 		for _, take := range analysis.Takes {
@@ -301,15 +338,16 @@ func generateOutputMarkdown(url string, content *FetchResult, analysis *Analysis
 		sb.WriteString("\n")
 	}
 
-	// Add content excerpt
-	maxLen := 5000
-	if prefs != nil && prefs.MaxContentLength > 0 {
-		maxLen = prefs.MaxContentLength
+	// Any extra content Claude generated (manager notes, etc.) is in RawExtra
+	if analysis.RawExtra != "" {
+		sb.WriteString(analysis.RawExtra)
+		sb.WriteString("\n")
 	}
 
+	// Content excerpt
 	bodyExcerpt := content.Body
-	if len(bodyExcerpt) > maxLen {
-		bodyExcerpt = bodyExcerpt[:maxLen] + "\n\n[Content truncated...]"
+	if len(bodyExcerpt) > 5000 {
+		bodyExcerpt = bodyExcerpt[:5000] + "\n\n[Content truncated...]"
 	}
 
 	sb.WriteString("## Content\n\n")
@@ -327,13 +365,24 @@ func saveToLibraryPath(url string, content *FetchResult, output string) (string,
 		return "", err
 	}
 
+	// Check if this URL already exists in the library
+	existingFile := findExistingURLInPath(libPath, url)
+	if existingFile != "" {
+		// Update existing file
+		fmt.Printf("Updating existing entry: %s\n", filepath.Base(existingFile))
+		if err := os.WriteFile(existingFile, []byte(output), 0644); err != nil {
+			return "", err
+		}
+		return existingFile, nil
+	}
+
 	// Generate filename: url_YYYY-MM-DD_{descriptor}.md
 	date := time.Now().Format("2006-01-02")
 	descriptor := generateDescriptorFromTitle(content.Title, url)
 	filename := fmt.Sprintf("url_%s_%s.md", date, descriptor)
 	fullPath := filepath.Join(libPath, filename)
 
-	// Handle duplicate filenames
+	// Handle duplicate filenames (different URLs with same title/date)
 	if _, err := os.Stat(fullPath); err == nil {
 		for i := 2; i < 100; i++ {
 			filename = fmt.Sprintf("url_%s_%s_%d.md", date, descriptor, i)
@@ -349,6 +398,39 @@ func saveToLibraryPath(url string, content *FetchResult, output string) (string,
 	}
 
 	return fullPath, nil
+}
+
+// findExistingURLInPath searches the library for an existing entry with the same URL
+func findExistingURLInPath(libPath, targetURL string) string {
+	entries, err := os.ReadDir(libPath)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		filePath := filepath.Join(libPath, entry.Name())
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			continue
+		}
+
+		// Look for **URL:** line and compare
+		for _, line := range strings.Split(string(content), "\n") {
+			if strings.HasPrefix(line, "**URL:**") {
+				fileURL := strings.TrimSpace(strings.TrimPrefix(line, "**URL:**"))
+				if fileURL == targetURL {
+					return filePath
+				}
+				break
+			}
+		}
+	}
+
+	return ""
 }
 
 func generateDescriptorFromTitle(title, url string) string {

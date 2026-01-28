@@ -8,20 +8,24 @@ import (
 
 // Analysis contains the result of analyzing URL content
 type Analysis struct {
-	Title   string
-	Tags    []string
-	Summary string
-	Takes   []string
+	Title    string
+	Tags     []string
+	Summary  string
+	Takes    []string
+	RawExtra string // Any additional sections Claude generated
 }
 
 // URLPreferences contains user preferences for URL processing
 type URLPreferences struct {
-	MaxContentLength int
-	GenerateTags     bool
-	GenerateSummary  bool
-	GenerateTakes    bool
-	TagCategories    []string
-	ExcludePatterns  []string
+	MaxContentLength    int
+	GenerateTags        bool
+	GenerateSummary     bool
+	GenerateTakes       bool
+	GenerateManagerNotes bool
+	TagCategories       []string
+	ExcludePatterns     []string
+	ManagerNotesPrompt  string
+	DefaultTags         []string
 }
 
 // Analyze performs content analysis on fetched content
