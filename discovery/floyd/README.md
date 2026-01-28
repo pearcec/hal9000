@@ -39,7 +39,18 @@ All Floyd watchers use the `[floyd][watcher]` log prefix for discoverability:
 Each watcher is a standalone daemon:
 
 ```bash
-./calendar/calendar-floyd
-./jira/jira-floyd
-./slack/slack-floyd
+./calendar/floyd-calendar
+./jira/floyd-jira
+./slack/floyd-slack
+```
+
+## Building
+
+Build the floyd binaries:
+
+```bash
+cd discovery
+go build -o floyd/calendar/floyd-calendar ./floyd/calendar
+go build -o floyd/jira/floyd-jira ./floyd/jira
+go build -o floyd/slack/floyd-slack ./floyd/slack
 ```

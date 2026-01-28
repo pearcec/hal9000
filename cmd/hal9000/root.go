@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/pearcec/hal9000/cmd/hal9000/tasks"
+
 	"github.com/spf13/cobra"
 )
 
@@ -27,4 +29,7 @@ func init() {
 	// Subcommands will be added here as they are implemented:
 	// rootCmd.AddCommand(calendarCmd)
 	// rootCmd.AddCommand(jiraCmd)
+
+	// Register all tasks as commands
+	tasks.RegisterCommands(rootCmd)
 }

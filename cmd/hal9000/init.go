@@ -87,6 +87,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
+	// Create default services file if it doesn't exist
+	servicesPath := filepath.Join(configDir, "services.yaml")
+	if err := createServicesIfNotExists(servicesPath, &created); err != nil {
+		return fmt.Errorf("failed to create services file: %w", err)
+	}
+
 	// Print results
 	if len(created) == 0 {
 		fmt.Println("HAL 9000 is already initialized. All directories and files exist.")
@@ -132,6 +138,49 @@ notifications:
 #   url: https://your-instance.atlassian.net
 `
 		if err := os.WriteFile(path, []byte(defaultConfig), 0644); err != nil {
+			return err
+		}
+		*created = append(*created, path)
+	}
+	return nil
+}
+
+func createServicesIfNotExists(path string, created *[]string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		defaultServices := `# HAL 9000 Services Configuration
+# Edit this file to enable/disable services and customize commands.
+#
+# Services:
+#   scheduler        HAL task scheduler daemon
+#   floyd-calendar   Google Calendar watcher
+#   floyd-jira       JIRA watcher
+#   floyd-slack      Slack watcher
+
+services:
+  - name: scheduler
+    command: hal9000
+    args:
+      - scheduler
+      - start
+    enabled: true
+    description: HAL task scheduler daemon
+
+  - name: floyd-calendar
+    command: floyd-calendar
+    enabled: false
+    description: Google Calendar watcher
+
+  - name: floyd-jira
+    command: floyd-jira
+    enabled: false
+    description: JIRA watcher
+
+  - name: floyd-slack
+    command: floyd-slack
+    enabled: false
+    description: Slack watcher
+`
+		if err := os.WriteFile(path, []byte(defaultServices), 0644); err != nil {
 			return err
 		}
 		*created = append(*created, path)

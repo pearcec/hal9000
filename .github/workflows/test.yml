@@ -58,9 +58,9 @@ jobs:
       - name: Build floyd binaries
         working-directory: discovery
         run: |
-          go build -o bin/calendar-floyd ./floyd/calendar
-          go build -o bin/jira-floyd ./floyd/jira
-          go build -o bin/slack-floyd ./floyd/slack
+          go build -o bin/floyd-calendar ./floyd/calendar
+          go build -o bin/floyd-jira ./floyd/jira
+          go build -o bin/floyd-slack ./floyd/slack
 
       - name: Verify floyd builds
         run: ls -la discovery/bin/
