@@ -7,6 +7,7 @@
 # Binaries
 /hal9000
 /bin/
+.task/
 coverage.out
 coverage.html
 
