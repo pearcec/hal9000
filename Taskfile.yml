@@ -32,11 +32,8 @@ tasks:
       - '{{.BUILD_DIR}}/floyd-slack'
 
   install:
-    desc: Build binaries (available in ./bin)
+    desc: Alias for build (binaries in ./bin)
     deps: [build]
-    cmds:
-      - echo "Binaries available in {{.BUILD_DIR}}/"
-      - 'echo "Run services with: ./bin/hal9000 services start"'
 
   test:
     desc: Run tests
