@@ -281,44 +281,53 @@ func TestParseClaudeResponse(t *testing.T) {
 		expectedTags int
 		expectedSum  string
 		expectTakes  int
-		wantErr      bool
+		expectEmpty  bool
 	}{
 		{
 			name: "standard format",
 			response: `TAGS: kubernetes, docker, containers, devops, cloud-native
-SUMMARY: This article discusses container orchestration with Kubernetes. It covers deployment strategies and best practices for production environments.
-TAKES:
+
+## Summary
+This article discusses container orchestration with Kubernetes. It covers deployment strategies and best practices for production environments.
+
+## Key Takes
 - Use namespaces to isolate workloads
 - Implement proper resource limits
 - Set up monitoring from day one`,
 			expectedTags: 5,
 			expectedSum:  "This article discusses container orchestration with Kubernetes.",
 			expectTakes:  3,
-			wantErr:      false,
+			expectEmpty:  false,
 		},
 		{
 			name: "with asterisk bullets",
 			response: `TAGS: golang, programming
-SUMMARY: A guide to Go programming.
-TAKES:
+
+## Summary
+A guide to Go programming.
+
+## Key Takes
 * Learn goroutines early
 * Use interfaces wisely`,
 			expectedTags: 2,
 			expectedSum:  "A guide to Go programming.",
 			expectTakes:  2,
-			wantErr:      false,
+			expectEmpty:  false,
 		},
 		{
 			name: "extra whitespace",
 			response: `TAGS:   ai, machine-learning,  deep-learning
-SUMMARY:   Machine learning fundamentals explained.
-TAKES:
+
+## Summary
+Machine learning fundamentals explained.
+
+## Key Takes
 -   Start with supervised learning
 -   Practice with real datasets`,
 			expectedTags: 3,
 			expectedSum:  "Machine learning fundamentals explained.",
 			expectTakes:  2,
-			wantErr:      false,
+			expectEmpty:  false,
 		},
 		{
 			name:         "empty response",
@@ -326,7 +335,7 @@ TAKES:
 			expectedTags: 0,
 			expectedSum:  "",
 			expectTakes:  0,
-			wantErr:      true,
+			expectEmpty:  true,
 		},
 		{
 			name:         "no parseable content",
@@ -334,23 +343,19 @@ TAKES:
 			expectedTags: 0,
 			expectedSum:  "",
 			expectTakes:  0,
-			wantErr:      true,
+			expectEmpty:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseClaudeResponse(tt.response)
+			result := parseClaudeResponse(tt.response, "Fallback Title")
 
-			if tt.wantErr {
-				if err == nil {
-					t.Error("Expected error but got none")
+			if tt.expectEmpty {
+				// Empty responses should still have fallback title
+				if result.Title != "Fallback Title" {
+					t.Errorf("Expected fallback title, got %q", result.Title)
 				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
 				return
 			}
 
@@ -370,40 +375,39 @@ TAKES:
 }
 
 func TestBuildAnalysisPrompt(t *testing.T) {
-	prefs := &URLPreferences{
-		MaxContentLength: 100,
+	content := &FetchResult{
+		Title: "Test Article",
+		Body:  "This is test content for analysis.",
 	}
 
-	content := "This is test content for analysis."
-	title := "Test Article"
+	prompt := buildAnalysisPrompt("https://example.com/test", content, "")
 
-	prompt := buildAnalysisPrompt(content, title, prefs)
-
-	if !strings.Contains(prompt, title) {
+	if !strings.Contains(prompt, content.Title) {
 		t.Error("Prompt should contain the title")
 	}
-	if !strings.Contains(prompt, content) {
+	if !strings.Contains(prompt, content.Body) {
 		t.Error("Prompt should contain the content")
 	}
-	if !strings.Contains(prompt, "TAGS") {
-		t.Error("Prompt should mention TAGS")
+	if !strings.Contains(prompt, "Tags") || !strings.Contains(prompt, "tag") {
+		t.Error("Prompt should mention tags")
 	}
-	if !strings.Contains(prompt, "SUMMARY") {
-		t.Error("Prompt should mention SUMMARY")
+	if !strings.Contains(prompt, "Summary") {
+		t.Error("Prompt should mention Summary")
 	}
-	if !strings.Contains(prompt, "TAKES") {
-		t.Error("Prompt should mention TAKES")
+	if !strings.Contains(prompt, "Takes") || !strings.Contains(prompt, "Key Takes") {
+		t.Error("Prompt should mention Takes")
 	}
 }
 
 func TestBuildAnalysisPromptTruncation(t *testing.T) {
-	prefs := &URLPreferences{
-		MaxContentLength: 50,
+	longContent := strings.Repeat("a", 10000)
+
+	content := &FetchResult{
+		Title: "Long Article",
+		Body:  longContent,
 	}
 
-	longContent := strings.Repeat("a", 100)
-
-	prompt := buildAnalysisPrompt(longContent, "", prefs)
+	prompt := buildAnalysisPrompt("https://example.com/test", content, "")
 
 	if !strings.Contains(prompt, "[Content truncated...]") {
 		t.Error("Long content should be truncated")
