@@ -67,6 +67,7 @@ type ServiceSelection struct {
 	Calendar  bool
 	Jira      bool
 	Slack     bool
+	BambooHR  bool
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -92,6 +93,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		"calendar",
 		"schedules",
 		"logs",
+		"bamboohr",
 	}
 
 	// Create library directories
@@ -144,6 +146,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			Calendar:  false,
 			Jira:      false,
 			Slack:     false,
+			BambooHR:  false,
 		}
 	} else if alreadyInitialized && servicesExist {
 		// Re-running init - ask about modifications
@@ -231,7 +234,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("\nI am completely operational, and all my circuits are functioning perfectly.")
 
 	// Suggest next steps
-	if selection.Scheduler || selection.Calendar || selection.Jira || selection.Slack {
+	if selection.Scheduler || selection.Calendar || selection.Jira || selection.Slack || selection.BambooHR {
 		fmt.Println("\nNext steps:")
 		fmt.Println("  hal9000 services start    # Start enabled services")
 		fmt.Println("  hal9000 services status   # Check service health")
@@ -298,11 +301,21 @@ func promptServiceSelection(reader *bufio.Reader, isModify bool) (ServiceSelecti
 	}
 	selection.Slack = yes
 
+	// BambooHR
+	fmt.Println("\n5. BambooHR Watcher (floyd-bamboohr)")
+	fmt.Println("   Monitors BambooHR employee directory and profiles.")
+	fmt.Println("   Requires: BambooHR API key")
+	yes, err = promptYesNo(reader, "   Enable BambooHR watcher?")
+	if err != nil {
+		return selection, err
+	}
+	selection.BambooHR = yes
+
 	return selection, nil
 }
 
 func promptAuthentication(reader *bufio.Reader, selection ServiceSelection, credentialsDir string) error {
-	needsAuth := selection.Calendar || selection.Jira || selection.Slack
+	needsAuth := selection.Calendar || selection.Jira || selection.Slack || selection.BambooHR
 	if !needsAuth {
 		return nil
 	}
@@ -422,6 +435,48 @@ bot_token: %s
 		}
 	}
 
+	if selection.BambooHR {
+		fmt.Println("\nBambooHR Setup:")
+		fmt.Println("  1. Log into BambooHR as an admin")
+		fmt.Println("  2. Go to Account > API Keys")
+		fmt.Println("  3. Generate a new API key")
+
+		setupNow, err := promptYesNo(reader, "  Do you have your BambooHR API key ready?")
+		if err != nil {
+			return err
+		}
+		if setupNow {
+			fmt.Printf("  Enter your BambooHR subdomain (e.g., 'yourcompany' for yourcompany.bamboohr.com): ")
+			subdomainInput, err := reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
+			subdomain := strings.TrimSpace(subdomainInput)
+
+			fmt.Printf("  Enter your BambooHR API key: ")
+			keyInput, err := reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
+			apiKey := strings.TrimSpace(keyInput)
+
+			if subdomain != "" && apiKey != "" {
+				bamboohrCreds := fmt.Sprintf(`# BambooHR Credentials
+subdomain: %s
+api_key: %s
+`, subdomain, apiKey)
+				destPath := filepath.Join(credentialsDir, "bamboohr-credentials.yaml")
+				if err := os.WriteFile(destPath, []byte(bamboohrCreds), 0600); err != nil {
+					fmt.Printf("  Warning: could not save credentials: %v\n", err)
+				} else {
+					fmt.Printf("  Saved credentials to %s\n", destPath)
+				}
+			}
+		} else {
+			fmt.Printf("  Later: Create %s/bamboohr-credentials.yaml with subdomain, api_key\n", credentialsDir)
+		}
+	}
+
 	return nil
 }
 
@@ -536,6 +591,12 @@ func buildServicesConfig(selection ServiceSelection) *ServicesConfig {
 				Command:     "floyd-slack",
 				Enabled:     selection.Slack,
 				Description: "Slack watcher",
+			},
+			{
+				Name:        "floyd-bamboohr",
+				Command:     "floyd-bamboohr",
+				Enabled:     selection.BambooHR,
+				Description: "BambooHR watcher",
 			},
 		},
 	}
