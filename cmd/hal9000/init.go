@@ -253,6 +253,101 @@ func promptYesNo(reader *bufio.Reader, question string) (bool, error) {
 	return input == "y" || input == "yes", nil
 }
 
+// promptWithDefault prompts for input showing a current value if present.
+// If the user presses Enter without input, returns the current value.
+func promptWithDefault(reader *bufio.Reader, prompt, currentValue string, isSecret bool) (string, error) {
+	displayValue := currentValue
+	if isSecret && currentValue != "" {
+		displayValue = maskSecret(currentValue)
+	}
+
+	if currentValue != "" {
+		fmt.Printf("%s [%s]: ", prompt, displayValue)
+	} else {
+		fmt.Printf("%s: ", prompt)
+	}
+
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	input = strings.TrimSpace(input)
+
+	if input == "" && currentValue != "" {
+		return currentValue, nil
+	}
+	return input, nil
+}
+
+// maskSecret returns a masked version of a secret, showing first 5 characters.
+// Example: "abc12345678" -> "abc12***"
+func maskSecret(s string) string {
+	if len(s) <= 5 {
+		return strings.Repeat("*", len(s))
+	}
+	return s[:5] + "***"
+}
+
+// JIRACredentials holds JIRA authentication info
+type JIRACredentials struct {
+	URL      string `yaml:"url"`
+	Email    string `yaml:"email"`
+	APIToken string `yaml:"api_token"`
+}
+
+// SlackCredentials holds Slack authentication info
+type SlackCredentials struct {
+	BotToken string `yaml:"bot_token"`
+}
+
+// BambooHRCredentials holds BambooHR authentication info
+type BambooHRCredentials struct {
+	Subdomain string `yaml:"subdomain"`
+	APIKey    string `yaml:"api_key"`
+}
+
+// loadJIRACredentials loads existing JIRA credentials from file
+func loadJIRACredentials(credentialsDir string) (*JIRACredentials, error) {
+	path := filepath.Join(credentialsDir, "jira-credentials.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var creds JIRACredentials
+	if err := yaml.Unmarshal(data, &creds); err != nil {
+		return nil, err
+	}
+	return &creds, nil
+}
+
+// loadSlackCredentials loads existing Slack credentials from file
+func loadSlackCredentials(credentialsDir string) (*SlackCredentials, error) {
+	path := filepath.Join(credentialsDir, "slack-credentials.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var creds SlackCredentials
+	if err := yaml.Unmarshal(data, &creds); err != nil {
+		return nil, err
+	}
+	return &creds, nil
+}
+
+// loadBambooHRCredentials loads existing BambooHR credentials from file
+func loadBambooHRCredentials(credentialsDir string) (*BambooHRCredentials, error) {
+	path := filepath.Join(credentialsDir, "bamboohr-credentials.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var creds BambooHRCredentials
+	if err := yaml.Unmarshal(data, &creds); err != nil {
+		return nil, err
+	}
+	return &creds, nil
+}
+
 func promptServiceSelection(reader *bufio.Reader, isModify bool) (ServiceSelection, error) {
 	selection := ServiceSelection{}
 
@@ -321,14 +416,29 @@ func promptAuthentication(reader *bufio.Reader, selection ServiceSelection, cred
 	}
 
 	fmt.Println("\n--- Authentication Setup ---")
+	fmt.Println("(Press Enter to keep current values)")
 
 	if selection.Calendar {
+		// Check for existing calendar credentials
+		existingCalPath := filepath.Join(credentialsDir, "calendar-credentials.json")
+		hasExisting := false
+		if _, err := os.Stat(existingCalPath); err == nil {
+			hasExisting = true
+		}
+
 		fmt.Println("\nGoogle Calendar Setup:")
+		if hasExisting {
+			fmt.Println("  Existing credentials found.")
+		}
 		fmt.Println("  1. Go to https://console.cloud.google.com/apis/credentials")
 		fmt.Println("  2. Create OAuth 2.0 credentials for a Desktop app")
 		fmt.Println("  3. Download the credentials JSON file")
 
-		setupNow, err := promptYesNo(reader, "  Do you have credentials ready to configure now?")
+		prompt := "  Do you have credentials ready to configure now?"
+		if hasExisting {
+			prompt = "  Do you want to update the credentials?"
+		}
+		setupNow, err := promptYesNo(reader, prompt)
 		if err != nil {
 			return err
 		}
@@ -347,41 +457,51 @@ func promptAuthentication(reader *bufio.Reader, selection ServiceSelection, cred
 					fmt.Printf("  Saved credentials to %s\n", destPath)
 				}
 			}
-		} else {
+		} else if !hasExisting {
 			fmt.Printf("  Later: Save credentials to %s/calendar-credentials.json\n", credentialsDir)
 		}
 	}
 
 	if selection.Jira {
+		// Load existing JIRA credentials
+		existingJira, _ := loadJIRACredentials(credentialsDir)
+		var currentURL, currentEmail, currentToken string
+		if existingJira != nil {
+			currentURL = existingJira.URL
+			currentEmail = existingJira.Email
+			currentToken = existingJira.APIToken
+		}
+
 		fmt.Println("\nJIRA Setup:")
+		if existingJira != nil {
+			fmt.Println("  Existing credentials found.")
+		}
 		fmt.Println("  1. Go to https://id.atlassian.com/manage-profile/security/api-tokens")
 		fmt.Println("  2. Create an API token")
 
-		setupNow, err := promptYesNo(reader, "  Do you have your JIRA API token ready?")
+		prompt := "  Do you have your JIRA API token ready?"
+		if existingJira != nil {
+			prompt = "  Do you want to update JIRA credentials?"
+		}
+		setupNow, err := promptYesNo(reader, prompt)
 		if err != nil {
 			return err
 		}
 		if setupNow {
-			fmt.Printf("  Enter your JIRA instance URL (e.g., https://company.atlassian.net): ")
-			urlInput, err := reader.ReadString('\n')
+			jiraURL, err := promptWithDefault(reader, "  JIRA instance URL (e.g., https://company.atlassian.net)", currentURL, false)
 			if err != nil {
 				return err
 			}
-			jiraURL := strings.TrimSpace(urlInput)
 
-			fmt.Printf("  Enter your JIRA email: ")
-			emailInput, err := reader.ReadString('\n')
+			jiraEmail, err := promptWithDefault(reader, "  JIRA email", currentEmail, false)
 			if err != nil {
 				return err
 			}
-			jiraEmail := strings.TrimSpace(emailInput)
 
-			fmt.Printf("  Enter your JIRA API token: ")
-			tokenInput, err := reader.ReadString('\n')
+			jiraToken, err := promptWithDefault(reader, "  JIRA API token", currentToken, true)
 			if err != nil {
 				return err
 			}
-			jiraToken := strings.TrimSpace(tokenInput)
 
 			if jiraURL != "" && jiraEmail != "" && jiraToken != "" {
 				jiraCreds := fmt.Sprintf(`# JIRA Credentials
@@ -396,28 +516,40 @@ api_token: %s
 					fmt.Printf("  Saved credentials to %s\n", destPath)
 				}
 			}
-		} else {
+		} else if existingJira == nil {
 			fmt.Printf("  Later: Create %s/jira-credentials.yaml with url, email, api_token\n", credentialsDir)
 		}
 	}
 
 	if selection.Slack {
+		// Load existing Slack credentials
+		existingSlack, _ := loadSlackCredentials(credentialsDir)
+		var currentToken string
+		if existingSlack != nil {
+			currentToken = existingSlack.BotToken
+		}
+
 		fmt.Println("\nSlack Setup:")
+		if existingSlack != nil {
+			fmt.Println("  Existing credentials found.")
+		}
 		fmt.Println("  1. Go to https://api.slack.com/apps")
 		fmt.Println("  2. Create a new app or use existing")
 		fmt.Println("  3. Get your Bot User OAuth Token (starts with xoxb-)")
 
-		setupNow, err := promptYesNo(reader, "  Do you have your Slack bot token ready?")
+		prompt := "  Do you have your Slack bot token ready?"
+		if existingSlack != nil {
+			prompt = "  Do you want to update Slack credentials?"
+		}
+		setupNow, err := promptYesNo(reader, prompt)
 		if err != nil {
 			return err
 		}
 		if setupNow {
-			fmt.Printf("  Enter your Slack bot token: ")
-			tokenInput, err := reader.ReadString('\n')
+			slackToken, err := promptWithDefault(reader, "  Slack bot token", currentToken, true)
 			if err != nil {
 				return err
 			}
-			slackToken := strings.TrimSpace(tokenInput)
 
 			if slackToken != "" {
 				slackCreds := fmt.Sprintf(`# Slack Credentials
@@ -430,35 +562,46 @@ bot_token: %s
 					fmt.Printf("  Saved credentials to %s\n", destPath)
 				}
 			}
-		} else {
+		} else if existingSlack == nil {
 			fmt.Printf("  Later: Create %s/slack-credentials.yaml with bot_token\n", credentialsDir)
 		}
 	}
 
 	if selection.BambooHR {
+		// Load existing BambooHR credentials
+		existingBamboo, _ := loadBambooHRCredentials(credentialsDir)
+		var currentSubdomain, currentAPIKey string
+		if existingBamboo != nil {
+			currentSubdomain = existingBamboo.Subdomain
+			currentAPIKey = existingBamboo.APIKey
+		}
+
 		fmt.Println("\nBambooHR Setup:")
+		if existingBamboo != nil {
+			fmt.Println("  Existing credentials found.")
+		}
 		fmt.Println("  1. Log into BambooHR as an admin")
 		fmt.Println("  2. Go to Account > API Keys")
 		fmt.Println("  3. Generate a new API key")
 
-		setupNow, err := promptYesNo(reader, "  Do you have your BambooHR API key ready?")
+		prompt := "  Do you have your BambooHR API key ready?"
+		if existingBamboo != nil {
+			prompt = "  Do you want to update BambooHR credentials?"
+		}
+		setupNow, err := promptYesNo(reader, prompt)
 		if err != nil {
 			return err
 		}
 		if setupNow {
-			fmt.Printf("  Enter your BambooHR subdomain (e.g., 'yourcompany' for yourcompany.bamboohr.com): ")
-			subdomainInput, err := reader.ReadString('\n')
+			subdomain, err := promptWithDefault(reader, "  BambooHR subdomain (e.g., 'yourcompany' for yourcompany.bamboohr.com)", currentSubdomain, false)
 			if err != nil {
 				return err
 			}
-			subdomain := strings.TrimSpace(subdomainInput)
 
-			fmt.Printf("  Enter your BambooHR API key: ")
-			keyInput, err := reader.ReadString('\n')
+			apiKey, err := promptWithDefault(reader, "  BambooHR API key", currentAPIKey, true)
 			if err != nil {
 				return err
 			}
-			apiKey := strings.TrimSpace(keyInput)
 
 			if subdomain != "" && apiKey != "" {
 				bamboohrCreds := fmt.Sprintf(`# BambooHR Credentials
@@ -472,7 +615,7 @@ api_key: %s
 					fmt.Printf("  Saved credentials to %s\n", destPath)
 				}
 			}
-		} else {
+		} else if existingBamboo == nil {
 			fmt.Printf("  Later: Create %s/bamboohr-credentials.yaml with subdomain, api_key\n", credentialsDir)
 		}
 	}

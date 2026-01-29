@@ -161,6 +161,138 @@ func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && (s[:len(substr)] == substr || contains(s[1:], substr)))
 }
 
+func TestMaskSecret(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"abc12345678", "abc12***"},
+		{"short", "*****"},
+		{"abc", "***"},
+		{"", ""},
+		{"12345", "*****"},
+		{"123456", "12345***"},
+		{"xoxb-1234567890-abcdefghij", "xoxb-***"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := maskSecret(tt.input)
+			if result != tt.expected {
+				t.Errorf("maskSecret(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLoadJIRACredentials(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "hal9000-jira-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Test loading non-existent credentials
+	_, err = loadJIRACredentials(tmpDir)
+	if err == nil {
+		t.Error("Expected error loading non-existent credentials")
+	}
+
+	// Create test credentials file
+	credsContent := `url: https://test.atlassian.net
+email: test@example.com
+api_token: secret123
+`
+	credsPath := filepath.Join(tmpDir, "jira-credentials.yaml")
+	if err := os.WriteFile(credsPath, []byte(credsContent), 0600); err != nil {
+		t.Fatalf("Failed to write test credentials: %v", err)
+	}
+
+	// Test loading existing credentials
+	creds, err := loadJIRACredentials(tmpDir)
+	if err != nil {
+		t.Errorf("Failed to load credentials: %v", err)
+	}
+	if creds.URL != "https://test.atlassian.net" {
+		t.Errorf("Expected URL 'https://test.atlassian.net', got %q", creds.URL)
+	}
+	if creds.Email != "test@example.com" {
+		t.Errorf("Expected email 'test@example.com', got %q", creds.Email)
+	}
+	if creds.APIToken != "secret123" {
+		t.Errorf("Expected api_token 'secret123', got %q", creds.APIToken)
+	}
+}
+
+func TestLoadSlackCredentials(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "hal9000-slack-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Test loading non-existent credentials
+	_, err = loadSlackCredentials(tmpDir)
+	if err == nil {
+		t.Error("Expected error loading non-existent credentials")
+	}
+
+	// Create test credentials file
+	credsContent := `bot_token: xoxb-test-token
+`
+	credsPath := filepath.Join(tmpDir, "slack-credentials.yaml")
+	if err := os.WriteFile(credsPath, []byte(credsContent), 0600); err != nil {
+		t.Fatalf("Failed to write test credentials: %v", err)
+	}
+
+	// Test loading existing credentials
+	creds, err := loadSlackCredentials(tmpDir)
+	if err != nil {
+		t.Errorf("Failed to load credentials: %v", err)
+	}
+	if creds.BotToken != "xoxb-test-token" {
+		t.Errorf("Expected bot_token 'xoxb-test-token', got %q", creds.BotToken)
+	}
+}
+
+func TestLoadBambooHRCredentials(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "hal9000-bamboohr-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Test loading non-existent credentials
+	_, err = loadBambooHRCredentials(tmpDir)
+	if err == nil {
+		t.Error("Expected error loading non-existent credentials")
+	}
+
+	// Create test credentials file
+	credsContent := `subdomain: mycompany
+api_key: bamboo-api-key-12345
+`
+	credsPath := filepath.Join(tmpDir, "bamboohr-credentials.yaml")
+	if err := os.WriteFile(credsPath, []byte(credsContent), 0600); err != nil {
+		t.Fatalf("Failed to write test credentials: %v", err)
+	}
+
+	// Test loading existing credentials
+	creds, err := loadBambooHRCredentials(tmpDir)
+	if err != nil {
+		t.Errorf("Failed to load credentials: %v", err)
+	}
+	if creds.Subdomain != "mycompany" {
+		t.Errorf("Expected subdomain 'mycompany', got %q", creds.Subdomain)
+	}
+	if creds.APIKey != "bamboo-api-key-12345" {
+		t.Errorf("Expected api_key 'bamboo-api-key-12345', got %q", creds.APIKey)
+	}
+}
+
 func TestInitCreatesAllLibraryDirs(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "hal9000-init-full-test")
