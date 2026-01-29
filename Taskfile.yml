@@ -1,0 +1,72 @@
+version: '3'
+
+vars:
+  BUILD_DIR: ./bin
+  INSTALL_DIR: '{{.HOME}}/go/bin'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build all binaries
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -o {{.BUILD_DIR}}/hal9000 ./cmd/hal9000
+      - cd discovery && go build -o ../{{.BUILD_DIR}}/floyd-calendar ./floyd/calendar
+      - cd discovery && go build -o ../{{.BUILD_DIR}}/floyd-jira ./floyd/jira
+      - cd discovery && go build -o ../{{.BUILD_DIR}}/floyd-slack ./floyd/slack
+    sources:
+      - '**/*.go'
+    generates:
+      - '{{.BUILD_DIR}}/hal9000'
+      - '{{.BUILD_DIR}}/floyd-calendar'
+      - '{{.BUILD_DIR}}/floyd-jira'
+      - '{{.BUILD_DIR}}/floyd-slack'
+
+  install:
+    desc: Install binaries to PATH
+    deps: [build]
+    cmds:
+      - mkdir -p {{.INSTALL_DIR}}
+      - cp {{.BUILD_DIR}}/hal9000 {{.INSTALL_DIR}}/
+      - cp {{.BUILD_DIR}}/floyd-calendar {{.INSTALL_DIR}}/
+      - cp {{.BUILD_DIR}}/floyd-jira {{.INSTALL_DIR}}/
+      - cp {{.BUILD_DIR}}/floyd-slack {{.INSTALL_DIR}}/
+      - echo "Installed to {{.INSTALL_DIR}}"
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test ./...
+      - cd discovery && go test ./...
+
+  test-coverage:
+    desc: Run tests with coverage
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report: coverage.html"
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - rm -f coverage.out coverage.html
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+
+  lint:
+    desc: Run linter
+    cmds:
+      - golangci-lint run
+
+  mod:
+    desc: Tidy Go modules
+    cmds:
+      - go mod tidy

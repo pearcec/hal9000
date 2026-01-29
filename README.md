@@ -21,18 +21,39 @@ hal9000 url https://example.com/article
 
 ## Installation
 
+### Prerequisites
+
+- [mise](https://mise.jdx.dev/) - Runtime version manager
+- [task](https://taskfile.dev/) - Task runner
+
+### Build and Install
+
 ```bash
-# Clone and build
+# Clone and enter directory
 git clone <repo>
 cd hal9000
-go build -o hal9000 ./cmd/hal9000
+
+# Install Go (via mise)
+mise install
+
+# Build all binaries (hal9000, floyd-calendar, floyd-jira, floyd-slack)
+task build
+
+# Install to PATH (~/$HOME/go/bin)
+task install
 
 # Initialize library and config
 hal9000 init
+```
 
-# Optional: Add to PATH
-cp hal9000 /usr/local/bin/
-cp scripts/hal9000 /usr/local/bin/hal9000-session
+### Available Tasks
+
+```bash
+task            # Show all tasks
+task build      # Build all binaries
+task install    # Install binaries to PATH
+task test       # Run tests
+task clean      # Remove build artifacts
 ```
 
 ## Architecture
@@ -213,13 +234,22 @@ I've saved your preferences. Creating your agenda now...
 
 ```bash
 # Run tests
-go test ./...
+task test
 
-# Build
-go build -o hal9000 ./cmd/hal9000
+# Run tests with coverage
+task test-coverage
+
+# Build all binaries
+task build
+
+# Format code
+task fmt
+
+# Clean build artifacts
+task clean
 
 # Run locally
-./hal9000 --help
+./bin/hal9000 --help
 ```
 
 ## See Also

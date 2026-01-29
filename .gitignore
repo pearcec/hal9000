@@ -6,6 +6,9 @@
 
 # Binaries
 /hal9000
+/bin/
+coverage.out
+coverage.html
 
 # Gas Town (added by gt)
 # .claude/ - removed, settings.json should be tracked
