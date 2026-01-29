@@ -974,6 +974,406 @@ The agenda task is the reference implementation:
 
 ---
 
+## Claude Task Architecture
+
+All HAL tasks that require intelligence follow the same pattern: gather inputs, invoke Claude with opinionated defaults + user preferences, parse output, and optionally chain to downstream tasks.
+
+### The Pattern
+
+Every Claude-powered task follows this flow:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. GATHER INPUTS (Opinionated)                                 │
+│     - Each task knows what it needs                             │
+│     - Fetch from calendar, library, external APIs               │
+│     - Apply task-specific logic (e.g., find latest 1:1)         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  2. LOAD PREFERENCES                                            │
+│     - Read library/preferences/{task}.md as raw text            │
+│     - Preferences are NOT parsed - Claude interprets them       │
+│     - Missing preferences → use opinionated defaults            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  3. BUILD PROMPT                                                │
+│     - Task-specific opinionated instructions (the defaults)     │
+│     - Inject raw preferences for Claude to interpret            │
+│     - Include gathered input data                               │
+│     - Specify output format                                     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  4. INVOKE CLAUDE                                               │
+│     - claude -p "<prompt>"                                      │
+│     - Parse structured response                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  5. OUTPUT + CHAIN                                              │
+│     - Save to library (task-specific location)                  │
+│     - Optionally invoke downstream task with output             │
+│     - Return result                                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Prompt Structure
+
+Every task prompt follows this structure:
+
+```
+You are HAL 9000, executing the {task} task.
+
+## Task
+{Opinionated description of what this task does and how}
+
+## Default Behavior
+{What the task does without any preferences - the opinionated defaults}
+
+## User Preferences
+IMPORTANT: Follow these preferences exactly. They override defaults.
+{Raw contents of library/preferences/{task}.md}
+
+## Input Data
+{The gathered input data for this specific invocation}
+
+## Output Format
+{Structured output format for parsing}
+```
+
+### Preference Injection
+
+Preferences are passed as **raw markdown** to Claude, not parsed by Go code. This allows:
+
+- Natural language customization ("Don't include routine items")
+- Complex rules ("For meetings with external attendees, add extra context")
+- User-defined sections ("Add a 'Manager Notes' section with...")
+
+**Example preference injection:**
+
+```go
+func buildPrompt(input *Input, rawPreferences string) string {
+    var sb strings.Builder
+
+    sb.WriteString("You are HAL 9000, executing the onetoonesummary task.\n\n")
+    sb.WriteString("## Task\n")
+    sb.WriteString("Summarize a 1:1 meeting and update the person's profile.\n\n")
+
+    sb.WriteString("## Default Behavior\n")
+    sb.WriteString("- Extract key topics discussed\n")
+    sb.WriteString("- Identify action items (for you and for them)\n")
+    sb.WriteString("- Note any sentiment or concerns\n")
+    sb.WriteString("- Update 'Recent Interactions' section\n\n")
+
+    if rawPreferences != "" {
+        sb.WriteString("## User Preferences\n")
+        sb.WriteString("IMPORTANT: Follow these preferences exactly.\n\n")
+        sb.WriteString(rawPreferences)
+        sb.WriteString("\n\n")
+    }
+
+    sb.WriteString("## Input Data\n")
+    sb.WriteString(input.String())
+
+    return sb.String()
+}
+```
+
+### Task Chaining
+
+Tasks can invoke other tasks with their output. This creates pipelines:
+
+```
+onetoonesummary ──────► people
+     │                     │
+     │ (summary of 1:1)    │ (update profile)
+     │                     │
+     ▼                     ▼
+collabsummary ─────► collaboration
+```
+
+**Implementation:**
+
+```go
+func (t *OneToOneSummaryTask) Run(ctx context.Context, opts RunOptions) (*Result, error) {
+    // ... gather inputs, invoke Claude, get summary ...
+
+    // Chain to people task
+    if result.PersonSlug != "" {
+        peopleTask := &PeopleTask{}
+        peopleOpts := RunOptions{
+            Input: PeopleInput{
+                PersonSlug: result.PersonSlug,
+                Update: result.Summary,
+            },
+        }
+        return peopleTask.Run(ctx, peopleOpts)
+    }
+
+    return result, nil
+}
+```
+
+---
+
+## Claude Task Catalog
+
+### url
+
+**Purpose:** Process and save web content to the library.
+
+**Opinionated Defaults:**
+- Generate 5-8 relevant tags
+- Write 2-3 sentence summary
+- Extract 3-4 key insights as "takes"
+- Save to `url_library/`
+
+**Input:** URL to process
+
+**Output:** `library/url_library/url_YYYY-MM-DD_{descriptor}.md`
+
+**Downstream:** None
+
+**Preferences:** `library/preferences/url.md`
+- Tag generation rules
+- Summary style
+- Additional sections (e.g., "Manager Notes")
+
+---
+
+### agenda
+
+**Purpose:** Generate prioritized daily agenda.
+
+**Opinionated Defaults:**
+- Check calendar for today's meetings
+- Query JIRA for overdue/due items
+- Find previous agenda for rollover detection
+- Scan reminders folder
+- Check people-profiles for open items
+- Highlight top 3 priorities with ⭐
+- Mark overdue items with 🔥
+- Mark rollover items with 🔄
+
+**Input:** Date (defaults to today)
+
+**Output:** `library/agenda/agenda_YYYY-MM-DD_daily-agenda.md`
+
+**Downstream:** None
+
+**Preferences:** `library/preferences/agenda.md`
+- Priority count
+- Include/exclude routine items
+- JIRA board
+- Meeting prep inclusion
+- Format (full/compact/minimal)
+
+---
+
+### onetoonesummary
+
+**Purpose:** Summarize a 1:1 meeting and update the person's profile.
+
+**Opinionated Defaults:**
+1. Find the most recent calendar event that:
+   - Has exactly 2 attendees (you + one other)
+   - Has ended within the last 24 hours
+   - Has a Gemini transcript attached
+2. Fetch the Gemini notes/transcript
+3. Load the person's profile from `people-profiles/`
+4. Generate summary:
+   - Key topics discussed
+   - Decisions made
+   - Action items (yours and theirs)
+   - Notable context or sentiment
+5. **Chain to `people` task** with the summary
+
+**Input:**
+- Optional: Calendar event ID
+- Optional: Person slug
+- Default: Auto-detect most recent 1:1
+
+**Output:** Summary passed to `people` task
+
+**Downstream:** `people` (always)
+
+**Preferences:** `library/preferences/onetoonesummary.md`
+- Summary detail level (brief/standard/detailed)
+- Extract action items (yes/no)
+- Include sentiment analysis (yes/no)
+- Custom sections to add
+
+---
+
+### collabsummary
+
+**Purpose:** Summarize a collaboration/group meeting and update the collaboration record.
+
+**Opinionated Defaults:**
+1. Find the most recent calendar event that:
+   - Has 3+ attendees
+   - Has ended within the last 24 hours
+   - Has a Gemini transcript attached
+2. Fetch the Gemini notes/transcript
+3. Match to collaboration:
+   - By meeting title pattern (e.g., "Platform Team Sync" → `platform-team.md`)
+   - By >50% attendee overlap with known collaboration
+   - Or create new collaboration record
+4. Generate summary:
+   - Topics covered
+   - Decisions made (with dates for decision log)
+   - Action items by person
+   - Key discussion points
+5. **Chain to `collaboration` task** with the summary
+
+**Input:**
+- Optional: Calendar event ID
+- Optional: Collaboration slug
+- Default: Auto-detect most recent group meeting
+
+**Output:** Summary passed to `collaboration` task
+
+**Downstream:** `collaboration` (always)
+
+**Preferences:** `library/preferences/collabsummary.md`
+- Summary detail level
+- Auto-create new collaborations (yes/no)
+- Track decisions in log (yes/no)
+- Custom sections
+
+---
+
+### people
+
+**Purpose:** Manage and update people profiles.
+
+**Opinionated Defaults:**
+1. Load existing profile from `people-profiles/{slug}.md`
+   - If doesn't exist, create from template
+2. When receiving update from upstream task:
+   - Append to "Recent Interactions" section with date header
+   - Merge new action items into "Open Items" section
+   - Update "Current Context" if significant changes detected
+3. Preserve existing profile structure
+4. Never overwrite historical data - append only
+
+**Input:**
+- Person slug (required)
+- Update content (from upstream task or manual)
+- Update type: `interaction` | `context` | `identity`
+
+**Output:** `library/people-profiles/{slug}.md`
+
+**Downstream:** None
+
+**Preferences:** `library/preferences/people.md`
+- Profile template structure
+- Interaction summary format
+- Context update thresholds
+- Action item format
+
+**Profile Template:**
+```markdown
+# {Name}
+
+## Identity
+- **Role:**
+- **Company:**
+- **Reports to:**
+
+## Current Context
+{What they're working on, concerns, communication preferences}
+
+## Recent Interactions
+{Chronological summaries from onetoonesummary}
+
+## Open Items
+- [ ] {Action items tracked across interactions}
+```
+
+---
+
+### collaboration
+
+**Purpose:** Manage and update collaboration records.
+
+**Opinionated Defaults:**
+1. Load existing record from `collaborations/{slug}.md`
+   - If doesn't exist, create from template
+2. When receiving update from upstream task:
+   - Append to "Recent Sessions" section with date header
+   - Add decisions to "Decisions Log" with dates
+   - Update "Current Focus" if significant changes
+3. Track member changes over time
+4. Preserve history - append only
+
+**Input:**
+- Collaboration slug (required)
+- Update content (from upstream task or manual)
+- Update type: `session` | `decision` | `focus`
+
+**Output:** `library/collaborations/{slug}.md`
+
+**Downstream:** None
+
+**Preferences:** `library/preferences/collaboration.md`
+- Record template structure
+- Session summary format
+- Decision log format
+- Member tracking
+
+**Collaboration Template:**
+```markdown
+# {Name}
+
+## Identity
+- **Type:** {team|vendor|project|recurring}
+- **Members:** {Comma-separated names}
+- **Cadence:** {Meeting frequency}
+
+## Current Focus
+{What this collaboration is currently working on}
+
+## Recent Sessions
+{Chronological summaries from collabsummary}
+
+## Decisions Log
+{Date-stamped decisions for reference}
+```
+
+---
+
+### Task Dependency Graph
+
+```
+┌──────────────┐     ┌──────────────┐
+│     url      │     │    agenda    │
+│  (standalone)│     │ (standalone) │
+└──────────────┘     └──────────────┘
+
+┌──────────────────────────────────────────────┐
+│           MEETING SUMMARY PIPELINE           │
+│                                              │
+│  ┌────────────────┐    ┌─────────────────┐  │
+│  │onetoonesummary │───►│     people      │  │
+│  │   (1:1 mtgs)   │    │ (profile update)│  │
+│  └────────────────┘    └─────────────────┘  │
+│                                              │
+│  ┌────────────────┐    ┌─────────────────┐  │
+│  │  collabsummary │───►│ collaboration   │  │
+│  │  (group mtgs)  │    │ (record update) │  │
+│  └────────────────┘    └─────────────────┘  │
+└──────────────────────────────────────────────┘
+```
+
+---
+
 ## Interactions
 
 **Interactions** is the high-level concept for entities HAL maintains context about.
@@ -1335,10 +1735,18 @@ HAL only performs tasks for which explicit tools/skills exist. If a request fall
 ---
 
 ## Open Questions
+
+### Resolved
+- ~~Routine definition format~~ → Tasks use Go code + Claude prompts
+- ~~How does CLI integrate with routine execution~~ → Each task is a CLI command that invokes Claude
+- ~~Should preferences support inheritance~~ → No, raw markdown passed to Claude for interpretation
+
+### Open
 - Event payload reference format
 - Specific daemon/floyd implementations
 - Bronze → Silver transform rules per source type
-- Routine definition format (TOML like GT formulas, or Markdown?)
-- How does `hal9000` CLI integrate with routine execution?
-- Should preferences support inheritance/composition? (base + overrides)
 - Condition-based triggers: how to express and evaluate conditions?
+- Gemini transcript fetching: API or calendar attachment parsing?
+- How to handle meetings without transcripts (skip or prompt for manual notes)?
+- Person/collaboration slug generation from names (normalization rules)
+- Conflict resolution when multiple recent meetings match criteria

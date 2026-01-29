@@ -8,7 +8,7 @@
 /hal9000
 
 # Gas Town (added by gt)
-.claude/
+# .claude/ - removed, settings.json should be tracked
 
 # Library (personal data)
 /library/

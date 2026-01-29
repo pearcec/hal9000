@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '\\n[HAL 9000 ONLINE]\\n' && hal9000 context 2>/dev/null && hal9000 services status --quiet 2>/dev/null || echo '[NOTICE] Services not running. Run: hal9000 services diagnose'"
+            "command": "echo '[HAL 9000 ONLINE]' && (hal9000 services status --quiet 2>/dev/null || echo '[Services not running]')"
           }
         ]
       }
@@ -17,34 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hal9000 context 2>/dev/null && hal9000 services status --check-only 2>/dev/null || echo '⚠️ [HAL ALERT] Service failure detected. Run: hal9000 services diagnose'"
-          }
-        ]
-      },
-      {
-        "matcher": "(?i)(agenda|daily|morning|today)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '<hal-context task=\"agenda\">' && hal9000 preferences get agenda 2>/dev/null || echo 'No agenda preferences found - run first-time setup' && echo '</hal-context>'"
-          }
-        ]
-      },
-      {
-        "matcher": "(?i)(calendar|meeting|schedule)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '<hal-context task=\"calendar\">' && hal9000 preferences get calendar 2>/dev/null || echo 'No calendar preferences found' && echo '</hal-context>'"
-          }
-        ]
-      },
-      {
-        "matcher": "(?i)(/url|save.*url|process.*url)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '<hal-context task=\"url\">' && hal9000 preferences get url 2>/dev/null || echo 'No URL preferences found - run first-time setup' && echo '</hal-context>'"
+            "command": "hal9000 services status 2>/dev/null || true"
           }
         ]
       }

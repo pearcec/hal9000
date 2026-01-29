@@ -48,35 +48,17 @@ hal9000 library write {type}/{file}.md
 
 Entity types: `agenda/`, `people-profiles/`, `collaborations/`, `url_library/`, `reminders/`, `preferences/`, `hal-memory/`
 
-### Preferences (Auto-Loaded)
+### Preferences
 
-Preferences are **automatically injected** via hooks when you mention task keywords.
-When you see `<hal-context task="...">` in the conversation, those are the user's preferences.
+Each task loads its own preferences from `library/preferences/{task}.md`.
 
-**How it works:**
-- User says "create my agenda" → hook runs `hal9000 preferences get agenda`
-- User says "process this url" → hook runs `hal9000 preferences get url`
-- Preferences appear as `<hal-context>` blocks before your response
-
-**If preferences don't exist:**
-```
-<hal-context task="agenda">
-No agenda preferences found - run first-time setup
-</hal-context>
-```
-
-When you see "No preferences found", **ask setup questions**:
-1. Acknowledge this is first-time setup
-2. Ask the key questions for that task (see SPEC.md for each task's questions)
-3. Save responses via `hal9000 preferences set {task}`
-4. Then execute the task
-
-**Manual load** (if needed):
+To view or edit preferences:
 ```bash
-hal9000 preferences get {task}
+hal9000 preferences get {task}    # View
+hal9000 preferences set {task}    # Edit
 ```
 
-Apply preferences to customize output format, priorities, exclusions.
+Tasks handle missing preferences internally - they'll use defaults or prompt for setup.
 
 ### Calendar Data
 Floyd watchers store raw calendar data:
