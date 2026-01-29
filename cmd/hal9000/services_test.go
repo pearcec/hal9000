@@ -12,12 +12,12 @@ import (
 func TestGetDefaultServicesConfig(t *testing.T) {
 	config := getDefaultServicesConfig()
 
-	if len(config.Services) != 4 {
-		t.Errorf("expected 4 services, got %d", len(config.Services))
+	if len(config.Services) != 5 {
+		t.Errorf("expected 5 services, got %d", len(config.Services))
 	}
 
 	// Check service names
-	expectedNames := []string{"scheduler", "floyd-calendar", "floyd-jira", "floyd-slack"}
+	expectedNames := []string{"scheduler", "poole", "floyd-calendar", "floyd-jira", "floyd-slack"}
 	for i, name := range expectedNames {
 		if config.Services[i].Name != name {
 			t.Errorf("expected service %d to be %s, got %s", i, name, config.Services[i].Name)
@@ -29,8 +29,8 @@ func TestGetDefaultServicesConfig(t *testing.T) {
 		t.Error("scheduler should be enabled by default")
 	}
 
-	// Floyd services should be disabled by default
-	for i := 1; i < 4; i++ {
+	// Other services should be disabled by default
+	for i := 1; i < 5; i++ {
 		if config.Services[i].Enabled {
 			t.Errorf("%s should be disabled by default", config.Services[i].Name)
 		}
@@ -142,8 +142,8 @@ func TestLoadServicesConfigDefault(t *testing.T) {
 		t.Fatal("expected non-nil config")
 	}
 
-	if len(config.Services) != 4 {
-		t.Errorf("expected 4 default services, got %d", len(config.Services))
+	if len(config.Services) != 5 {
+		t.Errorf("expected 5 default services, got %d", len(config.Services))
 	}
 }
 

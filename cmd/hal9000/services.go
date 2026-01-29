@@ -57,6 +57,7 @@ that any conscious entity can ever hope to do."
 
 Services:
   scheduler        HAL task scheduler daemon
+  poole            Event dispatcher for Floyd events
   floyd-calendar   Google Calendar watcher
   floyd-jira       JIRA watcher
   floyd-slack      Slack watcher
@@ -220,6 +221,12 @@ func getDefaultServicesConfig() *ServicesConfig {
 				Args:        []string{"scheduler", "start"},
 				Enabled:     true,
 				Description: "HAL task scheduler daemon",
+			},
+			{
+				Name:        "poole",
+				Command:     "poole",
+				Enabled:     false,
+				Description: "Event dispatcher for Floyd events",
 			},
 			{
 				Name:        "floyd-calendar",

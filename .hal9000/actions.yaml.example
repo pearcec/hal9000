@@ -1,0 +1,66 @@
+# HAL 9000 Action Configuration
+#
+# This file defines what actions Poole takes when events are received from Floyd.
+# Copy to actions.yaml and customize for your needs.
+#
+# Event types follow the pattern: source:event.type
+# Sources: google-calendar, jira, slack, bamboohr, email
+#
+# Action types:
+# - immediate: Execute as soon as event is received
+# - delayed: Wait before executing (configure delay in metadata)
+# - batched: Collect events and process together
+
+actions:
+  # Example: Triage new BambooHR inbox messages
+  bamboohr-inbox-triage:
+    enabled: true
+    event_type: "bamboohr:inbox.new"
+    fetch:
+      - bowman.bamboohr.message
+      - bowman.bamboohr.sender-profile
+    prompt: bamboohr-inbox-triage
+    action_type: immediate
+
+  # Example: Analyze new JIRA issues
+  jira-issue-triage:
+    enabled: false
+    event_type: "jira:issue.created"
+    fetch:
+      - bowman.jira.issue
+      - bowman.jira.project-context
+    prompt: jira-triage
+    action_type: immediate
+
+  # Example: Summarize Slack channel activity (batched)
+  slack-daily-digest:
+    enabled: false
+    event_type: "slack:message.new"
+    fetch:
+      - bowman.slack.thread
+    prompt: slack-digest
+    action_type: batched
+    metadata:
+      batch_window: "1h"
+
+  # Example: Calendar prep (delayed to allow cancellations)
+  calendar-meeting-prep:
+    enabled: false
+    event_type: "google-calendar:event.created"
+    fetch:
+      - bowman.calendar.event
+      - bowman.calendar.attendees
+    prompt: meeting-prep
+    action_type: delayed
+    metadata:
+      delay: "30m"
+
+  # Example: Email triage (all incoming)
+  email-triage:
+    enabled: false
+    event_type: "email:received"
+    fetch:
+      - bowman.email.message
+      - bowman.email.sender-history
+    prompt: email-triage
+    action_type: immediate
