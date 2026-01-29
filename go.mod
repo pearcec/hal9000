@@ -1,6 +1,6 @@
 module github.com/pearcec/hal9000
 
-go 1.21
+go 1.24.0
 
 require (
 	github.com/pearcec/hal9000/discovery v0.0.0
@@ -31,7 +31,8 @@ require (
 	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/oauth2 v0.16.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/api v0.157.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
