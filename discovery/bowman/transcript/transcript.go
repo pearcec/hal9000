@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pearcec/hal9000/discovery/config"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
@@ -25,10 +26,15 @@ import (
 	"google.golang.org/api/option"
 )
 
-const (
-	credentialsPath = "~/.config/hal9000/calendar-floyd-credentials.json"
-	tokenPath       = "~/.config/hal9000/calendar-floyd-token.json"
-)
+// getCredentialsPath returns the path to calendar credentials
+func getCredentialsPath() string {
+	return filepath.Join(config.GetCredentialsDir(), "calendar-credentials.json")
+}
+
+// getTokenPath returns the path to the calendar OAuth token
+func getTokenPath() string {
+	return filepath.Join(config.GetCredentialsDir(), "calendar-token.json")
+}
 
 // TranscriptFormat identifies the source of a transcript.
 type TranscriptFormat string
@@ -392,7 +398,7 @@ func expandPath(path string) string {
 }
 
 func loadOAuthConfig() (*oauth2.Config, error) {
-	path := expandPath(credentialsPath)
+	path := getCredentialsPath()
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read credentials file: %w", err)
@@ -410,7 +416,7 @@ func loadOAuthConfig() (*oauth2.Config, error) {
 }
 
 func getClient(ctx context.Context, config *oauth2.Config) (*http.Client, error) {
-	tokPath := expandPath(tokenPath)
+	tokPath := getTokenPath()
 	tok, err := loadToken(tokPath)
 	if err != nil {
 		return nil, fmt.Errorf("no valid token found (run calendar-floyd first): %w", err)

@@ -1,5 +1,5 @@
 // Package config provides configuration management for HAL 9000 discovery components.
-// Configuration is loaded from ~/.config/hal9000/config.yaml with sensible defaults.
+// Configuration is loaded from .hal9000/config.yaml in the project directory with sensible defaults.
 // Project-relative paths (library, services) are resolved from the executable's directory.
 package config
 
@@ -35,8 +35,18 @@ var (
 )
 
 const (
+	// DefaultConfigDir is the default directory for HAL 9000 config files.
+	// Stored in the project directory (where init was run), not in ~/.config.
+	DefaultConfigDir = "./.hal9000"
+
 	// DefaultConfigPath is the default location for the config file.
-	DefaultConfigPath = "~/.config/hal9000/config.yaml"
+	DefaultConfigPath = "./.hal9000/config.yaml"
+
+	// DefaultCredentialsDir is the default location for credentials.
+	DefaultCredentialsDir = "./.hal9000/credentials"
+
+	// DefaultRuntimeDir is the default location for runtime files (PIDs, logs).
+	DefaultRuntimeDir = "./.hal9000/runtime"
 
 	// DefaultLibraryPath is the default library path when no config is present.
 	DefaultLibraryPath = "./library"
@@ -125,4 +135,19 @@ func expandPath(path string) string {
 		return filepath.Join(GetExecutableDir(), path)
 	}
 	return path
+}
+
+// GetConfigDir returns the absolute path to the config directory.
+func GetConfigDir() string {
+	return expandPath(DefaultConfigDir)
+}
+
+// GetCredentialsDir returns the absolute path to the credentials directory.
+func GetCredentialsDir() string {
+	return expandPath(DefaultCredentialsDir)
+}
+
+// GetRuntimeDir returns the absolute path to the runtime directory.
+func GetRuntimeDir() string {
+	return expandPath(DefaultRuntimeDir)
 }

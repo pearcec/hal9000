@@ -26,11 +26,19 @@ import (
 )
 
 const (
-	credentialsPath = "~/.config/hal9000/calendar-floyd-credentials.json"
-	tokenPath       = "~/.config/hal9000/calendar-floyd-token.json"
-	watchWindow     = 7 * 24 * time.Hour // One week ahead
-	pollInterval    = 5 * time.Minute
+	watchWindow  = 7 * 24 * time.Hour // One week ahead
+	pollInterval = 5 * time.Minute
 )
+
+// getCredentialsPath returns the path to calendar credentials
+func getCredentialsPath() string {
+	return filepath.Join(config.GetCredentialsDir(), "calendar-credentials.json")
+}
+
+// getTokenPath returns the path to the calendar OAuth token
+func getTokenPath() string {
+	return filepath.Join(config.GetCredentialsDir(), "calendar-token.json")
+}
 
 // eventBus is the event bus for storage operations.
 // Floyd emits events here; storage subscriber handles persistence.
@@ -111,7 +119,7 @@ func expandPath(path string) string {
 
 // loadOAuthConfig loads OAuth2 configuration from credentials file.
 func loadOAuthConfig() (*oauth2.Config, error) {
-	path := expandPath(credentialsPath)
+	path := getCredentialsPath()
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read credentials file: %v", err)
@@ -127,7 +135,7 @@ func loadOAuthConfig() (*oauth2.Config, error) {
 
 // getClient retrieves an authenticated HTTP client.
 func getClient(ctx context.Context, config *oauth2.Config) (*http.Client, error) {
-	tokPath := expandPath(tokenPath)
+	tokPath := getTokenPath()
 	tok, err := loadToken(tokPath)
 	if err != nil {
 		tok, err = getTokenFromWeb(ctx, config)
@@ -347,7 +355,7 @@ func hashEvent(e *calendar.Event) string {
 
 // loadState loads Floyd (watcher) state from disk.
 func loadState() FloydState {
-	path := expandPath("~/.config/hal9000/calendar-floyd-state.json")
+	path := filepath.Join(config.GetRuntimeDir(), "calendar-floyd-state.json")
 	state := FloydState{Events: make(map[string]string)}
 
 	data, err := os.ReadFile(path)
@@ -360,7 +368,7 @@ func loadState() FloydState {
 
 // saveState persists Floyd (watcher) state to disk.
 func saveState(state FloydState) {
-	path := expandPath("~/.config/hal9000/calendar-floyd-state.json")
+	path := filepath.Join(config.GetRuntimeDir(), "calendar-floyd-state.json")
 	data, _ := json.MarshalIndent(state, "", "  ")
 	os.WriteFile(path, data, 0644)
 }
@@ -372,7 +380,7 @@ func emitEvent(event Event) {
 	log.Printf("[floyd][watcher] EVENT: %s", string(data))
 
 	// Also write to events file for downstream processing
-	path := expandPath("~/.config/hal9000/calendar-events.jsonl")
+	path := filepath.Join(config.GetRuntimeDir(), "calendar-events.jsonl")
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Unable to write event: %v", err)

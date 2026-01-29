@@ -151,18 +151,23 @@ func TestLoadServicesConfigFromFile(t *testing.T) {
 	// Create temp directory as project directory
 	tmpDir := t.TempDir()
 
-	// Set up executable directory for testing (services.yaml is project-relative)
+	// Set up executable directory for testing (services.yaml is in .hal9000/)
 	config.ResetForTesting()
 	config.SetExecutableDirForTesting(tmpDir)
 	defer config.ResetForTesting()
 
-	// Write test config to project directory
+	// Create .hal9000 directory and write test config
+	hal9000Dir := filepath.Join(tmpDir, ".hal9000")
+	if err := os.MkdirAll(hal9000Dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
 	testConfig := `services:
   - name: custom-service
     command: /custom/cmd
     enabled: true
 `
-	configPath := filepath.Join(tmpDir, "services.yaml")
+	configPath := filepath.Join(hal9000Dir, "services.yaml")
 	if err := os.WriteFile(configPath, []byte(testConfig), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +191,7 @@ func TestSaveServicesConfig(t *testing.T) {
 	// Create temp directory as project directory
 	tmpDir := t.TempDir()
 
-	// Set up executable directory for testing (services.yaml is project-relative)
+	// Set up executable directory for testing (services.yaml is in .hal9000/)
 	config.ResetForTesting()
 	config.SetExecutableDirForTesting(tmpDir)
 	defer config.ResetForTesting()
@@ -205,8 +210,8 @@ func TestSaveServicesConfig(t *testing.T) {
 		t.Fatalf("failed to save config: %v", err)
 	}
 
-	// Verify file exists in project directory
-	configPath := filepath.Join(tmpDir, "services.yaml")
+	// Verify file exists in .hal9000 directory
+	configPath := filepath.Join(tmpDir, ".hal9000", "services.yaml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		t.Error("config file was not created")
 	}

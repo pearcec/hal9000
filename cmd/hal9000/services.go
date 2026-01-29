@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pearcec/hal9000/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -178,16 +179,15 @@ func init() {
 // Path helpers
 
 func getServicesConfigPath() string {
-	// Services config is project-relative (next to executable)
-	return expandPath("./services.yaml")
+	return config.GetServicesConfigPath()
 }
 
 func getServicePIDPath(serviceName string) string {
-	return expandPath(fmt.Sprintf("~/.config/hal9000/%s.pid", serviceName))
+	return config.GetServicePIDPath(serviceName)
 }
 
 func getServiceLogPath(serviceName string) string {
-	return expandPath(fmt.Sprintf("~/.config/hal9000/logs/%s.log", serviceName))
+	return config.GetServiceLogPath(serviceName)
 }
 
 // Config management
@@ -684,7 +684,7 @@ func runServicesDiagnose(cmd *cobra.Command, args []string) error {
 	config, err := loadServicesConfig()
 	if err != nil {
 		fmt.Printf("\033[31mConfig Error:\033[0m %v\n", err)
-		fmt.Println("\nTo fix: Check ~/.config/hal9000/services.yaml syntax")
+		fmt.Println("\nTo fix: Check .hal9000/services.yaml syntax")
 		return nil
 	}
 
@@ -726,7 +726,7 @@ func runServicesDiagnose(cmd *cobra.Command, args []string) error {
 		// Check if enabled
 		if !svc.Enabled {
 			fmt.Printf("  Status: \033[90mdisabled\033[0m\n")
-			fmt.Printf("  To enable: Edit ~/.config/hal9000/services.yaml\n\n")
+			fmt.Printf("  To enable: Edit .hal9000/services.yaml\n\n")
 			continue
 		}
 
@@ -740,7 +740,7 @@ func runServicesDiagnose(cmd *cobra.Command, args []string) error {
 				fmt.Printf("  Problem: Command not in PATH\n")
 				fmt.Printf("  To fix: Either:\n")
 				fmt.Printf("    1. Add directory containing '%s' to PATH\n", execPath)
-				fmt.Printf("    2. Use absolute path in ~/.config/hal9000/services.yaml\n")
+				fmt.Printf("    2. Use absolute path in .hal9000/services.yaml\n")
 				hasProblems = true
 				fmt.Println()
 				continue
@@ -753,7 +753,7 @@ func runServicesDiagnose(cmd *cobra.Command, args []string) error {
 		if os.IsNotExist(err) {
 			fmt.Printf("  Executable: \033[31mNOT FOUND\033[0m (%s)\n", execPath)
 			fmt.Printf("  Problem: File does not exist\n")
-			fmt.Printf("  To fix: Update command path in ~/.config/hal9000/services.yaml\n")
+			fmt.Printf("  To fix: Update command path in .hal9000/services.yaml\n")
 			hasProblems = true
 			fmt.Println()
 			continue

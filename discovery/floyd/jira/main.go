@@ -22,11 +22,23 @@ import (
 )
 
 const (
-	configPath   = "~/.config/hal9000/jira-floyd-config.json"
-	statePath    = "~/.config/hal9000/jira-floyd-state.json"
-	eventsPath   = "~/.config/hal9000/jira-events.jsonl"
 	pollInterval = 5 * time.Minute
 )
+
+// getConfigPath returns the path to JIRA credentials
+func getConfigPath() string {
+	return filepath.Join(config.GetCredentialsDir(), "jira-credentials.yaml")
+}
+
+// getStatePath returns the path to JIRA state file
+func getStatePath() string {
+	return filepath.Join(config.GetRuntimeDir(), "jira-floyd-state.json")
+}
+
+// getEventsPath returns the path to JIRA events file
+func getEventsPath() string {
+	return filepath.Join(config.GetRuntimeDir(), "jira-events.jsonl")
+}
 
 // Config holds JIRA connection settings.
 type Config struct {
@@ -115,7 +127,7 @@ func expandPath(path string) string {
 
 // loadConfig loads JIRA configuration from file.
 func loadConfig() (*Config, error) {
-	path := expandPath(configPath)
+	path := getConfigPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read config file %s: %v\n\nCreate config with:\n%s", path, err, configExample())
@@ -305,7 +317,7 @@ func getNestedString(fields map[string]interface{}, key, subkey string) string {
 
 // loadState loads Floyd state from disk.
 func loadState() FloydState {
-	path := expandPath(statePath)
+	path := getStatePath()
 	state := FloydState{Issues: make(map[string]string)}
 
 	data, err := os.ReadFile(path)
@@ -318,7 +330,7 @@ func loadState() FloydState {
 
 // saveState persists Floyd state to disk.
 func saveState(state FloydState) {
-	path := expandPath(statePath)
+	path := getStatePath()
 	data, _ := json.MarshalIndent(state, "", "  ")
 	os.WriteFile(path, data, 0644)
 }
@@ -329,7 +341,7 @@ func emitEvent(event Event) {
 	log.Printf("[floyd][watcher] EVENT: %s", string(data))
 
 	// Write to events file
-	path := expandPath(eventsPath)
+	path := getEventsPath()
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Unable to write event: %v", err)

@@ -92,7 +92,7 @@ func TestCreateConfigIfNotExists(t *testing.T) {
 	}
 }
 
-func TestCreateServicesConfigIfNotExists(t *testing.T) {
+func TestCreateServicesConfigWithSelection(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "hal9000-services-test")
 	if err != nil {
@@ -102,11 +102,17 @@ func TestCreateServicesConfigIfNotExists(t *testing.T) {
 
 	var created []string
 
-	// Test creating a new services config file
+	// Test creating a new services config file with default selection
 	servicesPath := filepath.Join(tmpDir, "services.yaml")
-	err = createServicesConfigIfNotExists(servicesPath, &created)
+	selection := ServiceSelection{
+		Scheduler: true,
+		Calendar:  false,
+		Jira:      false,
+		Slack:     false,
+	}
+	err = createServicesConfigWithSelection(servicesPath, selection, &created)
 	if err != nil {
-		t.Errorf("createServicesConfigIfNotExists failed: %v", err)
+		t.Errorf("createServicesConfigWithSelection failed: %v", err)
 	}
 
 	if len(created) != 1 {
@@ -126,13 +132,11 @@ func TestCreateServicesConfigIfNotExists(t *testing.T) {
 	// Verify content includes expected sections
 	contentStr := string(content)
 	expectedSections := []string{
-		"project_root:",
-		"scheduler:",
-		"enabled: true",
-		"floyd:",
-		"calendar:",
-		"jira:",
-		"slack:",
+		"services:",
+		"name: scheduler",
+		"name: floyd-calendar",
+		"name: floyd-jira",
+		"name: floyd-slack",
 	}
 
 	for _, section := range expectedSections {
@@ -143,9 +147,9 @@ func TestCreateServicesConfigIfNotExists(t *testing.T) {
 
 	// Test idempotency - creating same file again
 	created = []string{}
-	err = createServicesConfigIfNotExists(servicesPath, &created)
+	err = createServicesConfigWithSelection(servicesPath, selection, &created)
 	if err != nil {
-		t.Errorf("createServicesConfigIfNotExists failed on second call: %v", err)
+		t.Errorf("createServicesConfigWithSelection failed on second call: %v", err)
 	}
 
 	if len(created) != 0 {
