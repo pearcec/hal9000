@@ -183,6 +183,31 @@ func getServicesConfigPath() string {
 	return config.GetServicesConfigPath()
 }
 
+// resolveBinaryPath attempts to find a binary by looking in ./bin first
+// (project-local binaries), then falling back to PATH lookup.
+// This allows floyd-* binaries to be run from the project directory without
+// requiring them to be in the system PATH.
+func resolveBinaryPath(command string) string {
+	// If it's already an absolute path, use it as-is
+	if filepath.IsAbs(command) {
+		return command
+	}
+
+	// Check ./bin first (project-local binaries)
+	candidatePath := filepath.Join(".", "bin", command)
+	if info, err := os.Stat(candidatePath); err == nil && !info.IsDir() {
+		// Found the binary in ./bin
+		absPath, err := filepath.Abs(candidatePath)
+		if err == nil {
+			return absPath
+		}
+		return candidatePath
+	}
+
+	// Fall back to the original command (will be resolved via PATH)
+	return command
+}
+
 func getServicePIDPath(serviceName string) string {
 	return config.GetServicePIDPath(serviceName)
 }
@@ -421,8 +446,11 @@ func startService(config *ServicesConfig, name string) error {
 		return fmt.Errorf("failed to open log file: %w", err)
 	}
 
+	// Resolve the binary path (check ./bin first, then PATH)
+	binaryPath := resolveBinaryPath(svc.Command)
+
 	// Start the process
-	daemonCmd := exec.Command(svc.Command, svc.Args...)
+	daemonCmd := exec.Command(binaryPath, svc.Args...)
 	daemonCmd.Stdout = logFile
 	daemonCmd.Stderr = logFile
 	daemonCmd.Stdin = nil
@@ -737,17 +765,18 @@ func runServicesDiagnose(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		// Check executable
-		execPath := svc.Command
-		if !filepath.IsAbs(execPath) {
-			// Try to find in PATH
+		// Check executable - first try ./bin, then PATH
+		execPath := resolveBinaryPath(svc.Command)
+		if execPath == svc.Command && !filepath.IsAbs(execPath) {
+			// resolveBinaryPath didn't find it in ./bin, try PATH
 			foundPath, err := exec.LookPath(execPath)
 			if err != nil {
 				fmt.Printf("  Executable: \033[31mNOT FOUND\033[0m (%s)\n", execPath)
-				fmt.Printf("  Problem: Command not in PATH\n")
+				fmt.Printf("  Problem: Command not found in ./bin or in PATH\n")
 				fmt.Printf("  To fix: Either:\n")
-				fmt.Printf("    1. Add directory containing '%s' to PATH\n", execPath)
-				fmt.Printf("    2. Use absolute path in .hal9000/services.yaml\n")
+				fmt.Printf("    1. Build the project: task build (creates ./bin/%s)\n", execPath)
+				fmt.Printf("    2. Add directory containing '%s' to PATH\n", execPath)
+				fmt.Printf("    3. Use absolute path in .hal9000/services.yaml\n")
 				hasProblems = true
 				fmt.Println()
 				continue

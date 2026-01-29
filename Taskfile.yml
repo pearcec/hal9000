@@ -2,7 +2,6 @@ version: '3'
 
 vars:
   BUILD_DIR: ./bin
-  INSTALL_DIR: '{{.HOME}}/go/bin'
 
 tasks:
   default:
@@ -27,15 +26,11 @@ tasks:
       - '{{.BUILD_DIR}}/floyd-slack'
 
   install:
-    desc: Install binaries to PATH
+    desc: Build binaries (available in ./bin)
     deps: [build]
     cmds:
-      - mkdir -p {{.INSTALL_DIR}}
-      - cp {{.BUILD_DIR}}/hal9000 {{.INSTALL_DIR}}/
-      - cp {{.BUILD_DIR}}/floyd-calendar {{.INSTALL_DIR}}/
-      - cp {{.BUILD_DIR}}/floyd-jira {{.INSTALL_DIR}}/
-      - cp {{.BUILD_DIR}}/floyd-slack {{.INSTALL_DIR}}/
-      - echo "Installed to {{.INSTALL_DIR}}"
+      - echo "Binaries available in {{.BUILD_DIR}}/"
+      - echo "Run services with: ./bin/hal9000 services start"
 
   test:
     desc: Run tests
