@@ -48,7 +48,7 @@ tasks:
     cmds:
       - go test -coverprofile=coverage.out ./...
       - go tool cover -html=coverage.out -o coverage.html
-      - echo "Coverage report: coverage.html"
+      - 'echo "Coverage report: coverage.html"'
 
   clean:
     desc: Remove build artifacts
