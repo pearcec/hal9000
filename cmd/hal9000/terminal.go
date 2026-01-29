@@ -34,6 +34,9 @@ func runTerminal(cmd *cobra.Command, args []string) error {
 	// Display HAL 9000 banner on startup
 	PrintBanner()
 
+	// Display time-appropriate greeting
+	PrintGreeting()
+
 	// Find claude binary
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
