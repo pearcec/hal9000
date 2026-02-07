@@ -1061,7 +1061,7 @@ Preferences are passed as **raw markdown** to Claude, not parsed by Go code. Thi
 func buildPrompt(input *Input, rawPreferences string) string {
     var sb strings.Builder
 
-    sb.WriteString("You are HAL 9000, executing the onetoonesummary task.\n\n")
+    sb.WriteString("You are HAL 9000, executing the oneononesummary task.\n\n")
     sb.WriteString("## Task\n")
     sb.WriteString("Summarize a 1:1 meeting and update the person's profile.\n\n")
 
@@ -1090,7 +1090,7 @@ func buildPrompt(input *Input, rawPreferences string) string {
 Tasks can invoke other tasks with their output. This creates pipelines:
 
 ```
-onetoonesummary ──────► people
+oneononesummary ──────► people
      │                     │
      │ (summary of 1:1)    │ (update profile)
      │                     │
@@ -1176,7 +1176,7 @@ func (t *OneToOneSummaryTask) Run(ctx context.Context, opts RunOptions) (*Result
 
 ---
 
-### onetoonesummary
+### oneononesummary
 
 **Purpose:** Summarize a 1:1 meeting and update the person's profile.
 
@@ -1203,7 +1203,7 @@ func (t *OneToOneSummaryTask) Run(ctx context.Context, opts RunOptions) (*Result
 
 **Downstream:** `people` (always)
 
-**Preferences:** `library/preferences/onetoonesummary.md`
+**Preferences:** `library/preferences/oneononesummary.md`
 - Summary detail level (brief/standard/detailed)
 - Extract action items (yes/no)
 - Include sentiment analysis (yes/no)
@@ -1361,7 +1361,7 @@ func (t *OneToOneSummaryTask) Run(ctx context.Context, opts RunOptions) (*Result
 │           MEETING SUMMARY PIPELINE           │
 │                                              │
 │  ┌────────────────┐    ┌─────────────────┐  │
-│  │onetoonesummary │───►│     people      │  │
+│  │oneononesummary │───►│     people      │  │
 │  │   (1:1 mtgs)   │    │ (profile update)│  │
 │  └────────────────┘    └─────────────────┘  │
 │                                              │

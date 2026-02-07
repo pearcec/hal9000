@@ -1,10 +1,10 @@
-// Package onetoonesummary implements the 1:1 meeting summary task for HAL 9000.
+// Package oneononesummary implements the 1:1 meeting summary task for HAL 9000.
 // "I am putting myself to the fullest possible use, which is all I think that
 // any conscious entity can ever hope to do."
 //
 // This task processes 1:1 meeting transcripts and updates People Profiles with
 // summaries including topics discussed, decisions made, and action items.
-package onetoonesummary
+package oneononesummary
 
 import (
 	"context"
@@ -28,7 +28,7 @@ type Task struct{}
 
 // Name returns the task identifier.
 func (t *Task) Name() string {
-	return "onetoone"
+	return "oneonone"
 }
 
 // Description returns human-readable description.
@@ -38,7 +38,7 @@ func (t *Task) Description() string {
 
 // PreferencesKey returns the preferences file name (without .md extension).
 func (t *Task) PreferencesKey() string {
-	return "onetoone"
+	return "oneonone"
 }
 
 // SetupQuestions returns questions for first-run setup.
@@ -271,7 +271,7 @@ func (t *Task) findOrCreateProfile(lib *lmc.Library, personName string) (string,
 	content := map[string]interface{}{
 		"name":       personName,
 		"created_at": time.Now().Format(time.RFC3339),
-		"source":     "onetoone-task",
+		"source":     "oneonone-task",
 	}
 
 	entity, err := lib.Store("people", sanitizeID(strings.ToLower(personName)), content, nil)

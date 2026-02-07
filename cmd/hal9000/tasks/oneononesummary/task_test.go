@@ -1,4 +1,4 @@
-package onetoonesummary
+package oneononesummary
 
 import (
 	"testing"
@@ -14,12 +14,12 @@ func TestTaskInterface(t *testing.T) {
 	// Verify interface compliance
 	var _ tasks.Task = task
 
-	if task.Name() != "onetoone" {
-		t.Errorf("Name() = %q, want %q", task.Name(), "onetoone")
+	if task.Name() != "oneonone" {
+		t.Errorf("Name() = %q, want %q", task.Name(), "oneonone")
 	}
 
-	if task.PreferencesKey() != "onetoone" {
-		t.Errorf("PreferencesKey() = %q, want %q", task.PreferencesKey(), "onetoone")
+	if task.PreferencesKey() != "oneonone" {
+		t.Errorf("PreferencesKey() = %q, want %q", task.PreferencesKey(), "oneonone")
 	}
 
 	if task.Description() == "" {

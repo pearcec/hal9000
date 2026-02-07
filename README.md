@@ -149,7 +149,7 @@ hal9000 url search <term>        # Search url_library
 ### Meeting Summaries
 
 ```bash
-hal9000 onetoone <transcript>    # Summarize 1:1 and update people profile
+hal9000 oneonone <transcript>    # Summarize 1:1 and update people profile
 hal9000 collabsummary <transcript> # Summarize team/collab meeting
 ```
 

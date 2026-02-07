@@ -7,7 +7,7 @@ import (
 
 	// Register tasks via init()
 	_ "github.com/pearcec/hal9000/cmd/hal9000/tasks/collabsummary"
-	_ "github.com/pearcec/hal9000/cmd/hal9000/tasks/onetoonesummary"
+	_ "github.com/pearcec/hal9000/cmd/hal9000/tasks/oneononesummary"
 )
 
 func main() {
