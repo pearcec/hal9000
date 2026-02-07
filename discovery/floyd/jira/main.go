@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/pearcec/hal9000/discovery/config"
 	evbus "github.com/pearcec/hal9000/discovery/events"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -42,10 +44,10 @@ func getEventsPath() string {
 
 // Config holds JIRA connection settings.
 type Config struct {
-	BaseURL  string `json:"base_url"`  // e.g., "https://yourcompany.atlassian.net"
-	Email    string `json:"email"`     // JIRA account email
-	APIToken string `json:"api_token"` // JIRA API token
-	JQL      string `json:"jql"`       // JQL query to watch (e.g., "project = MYPROJECT")
+	BaseURL  string `yaml:"url" json:"base_url"`       // e.g., "https://yourcompany.atlassian.net"
+	Email    string `yaml:"email" json:"email"`         // JIRA account email
+	APIToken string `yaml:"api_token" json:"api_token"` // JIRA API token
+	JQL      string `yaml:"jql" json:"jql"`             // JQL query to watch (e.g., "project = MYPROJECT")
 }
 
 // Event represents a JIRA change event emitted by Floyd (watcher).
@@ -134,24 +136,26 @@ func loadConfig() (*Config, error) {
 	}
 
 	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("unable to parse config: %v", err)
 	}
 
 	if config.BaseURL == "" || config.Email == "" || config.APIToken == "" {
-		return nil, fmt.Errorf("config missing required fields (base_url, email, api_token)")
+		return nil, fmt.Errorf("config missing required fields (url, email, api_token)")
+	}
+
+	if config.JQL == "" {
+		config.JQL = "assignee = currentUser() AND status != Done ORDER BY updated DESC"
 	}
 
 	return &config, nil
 }
 
 func configExample() string {
-	return `{
-  "base_url": "https://yourcompany.atlassian.net",
-  "email": "you@company.com",
-  "api_token": "your-api-token",
-  "jql": "project = MYPROJECT AND updated >= -7d ORDER BY updated DESC"
-}`
+	return `url: https://yourcompany.atlassian.net
+email: you@company.com
+api_token: your-api-token
+jql: "project = MYPROJECT AND updated >= -7d ORDER BY updated DESC"`
 }
 
 // watchJIRA checks for JIRA issue changes and returns events.
@@ -223,11 +227,11 @@ func watchJIRA(config *Config, state FloydState) ([]Event, FloydState, error) {
 
 // searchJIRA queries JIRA with the configured JQL.
 func searchJIRA(config *Config) ([]JIRAIssue, error) {
-	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=100",
-		config.BaseURL,
-		strings.ReplaceAll(config.JQL, " ", "%20"))
+	endpoint := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&maxResults=100&fields=*navigable",
+		strings.TrimRight(config.BaseURL, "/"),
+		url.QueryEscape(config.JQL))
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, err
 	}

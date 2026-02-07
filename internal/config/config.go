@@ -104,26 +104,43 @@ func GetLibraryPath() string {
 	return expandPath(cfg.Library.Path)
 }
 
-// GetExecutableDir returns the directory containing the hal9000 executable.
-// This is used as the base for project-relative paths (library, services).
+// GetExecutableDir returns the project root directory for HAL 9000.
+// It walks up from the executable's directory looking for a .hal9000/ marker,
+// similar to how git finds .git/. Falls back to cwd if not found.
 // The result is cached after the first call.
 func GetExecutableDir() string {
 	executableDirOnce.Do(func() {
 		execPath, err := os.Executable()
 		if err != nil {
-			// Fall back to current working directory
 			executableDir, _ = os.Getwd()
 			return
 		}
-		// Resolve symlinks to get the real executable location
 		execPath, err = filepath.EvalSymlinks(execPath)
 		if err != nil {
 			executableDir, _ = os.Getwd()
 			return
 		}
-		executableDir = filepath.Dir(execPath)
+		executableDir = findProjectRoot(filepath.Dir(execPath))
 	})
 	return executableDir
+}
+
+// findProjectRoot walks up from dir looking for .hal9000/ marker.
+// Falls back to cwd if not found.
+func findProjectRoot(dir string) string {
+	current := dir
+	for {
+		candidate := filepath.Join(current, ".hal9000", "config.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			return current
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			cwd, _ := os.Getwd()
+			return cwd
+		}
+		current = parent
+	}
 }
 
 // expandPath expands ~ to home directory and resolves relative paths.
