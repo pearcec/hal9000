@@ -39,9 +39,6 @@ mise install
 # Build all binaries (hal9000, floyd-calendar, floyd-jira, floyd-slack)
 task build
 
-# Install to PATH (~/$HOME/go/bin)
-task install
-
 # Initialize library and config
 hal9000 init
 ```
@@ -49,11 +46,14 @@ hal9000 init
 ### Available Tasks
 
 ```bash
-task            # Show all tasks
-task build      # Build all binaries
-task install    # Install binaries to PATH
-task test       # Run tests
-task clean      # Remove build artifacts
+task              # Show all tasks
+task build        # Build all binaries to ./bin/
+task install      # Alias for build
+task test         # Run tests
+task test-coverage # Run tests with coverage
+task fmt          # Format Go code
+task lint         # Run linter
+task clean        # Remove build artifacts
 ```
 
 ## Architecture
@@ -88,10 +88,12 @@ HAL 9000 has two layers:
 ## Directory Structure
 
 ```
-~/.config/hal9000/           # User config (auth, credentials)
+.hal9000/                    # Project config (created by hal9000 init)
 ├── config.yaml              # Main configuration
 ├── credentials/             # OAuth tokens, API keys
-└── scheduler.pid            # Daemon PID file
+├── services.yaml            # Service definitions
+└── runtime/                 # PID files, logs
+    └── logs/                # Service log files
 
 ./library/                   # Knowledge graph (gitignored)
 ├── agenda/                  # Daily agendas
@@ -102,6 +104,12 @@ HAL 9000 has two layers:
 ├── hal-memory/              # Conversation summaries
 ├── calendar/                # Raw calendar data
 └── logs/                    # HAL logs
+
+./bin/                       # Built binaries (task build)
+├── hal9000                  # Main CLI
+├── floyd-calendar           # Google Calendar watcher
+├── floyd-jira               # JIRA watcher
+└── floyd-slack              # Slack watcher
 ```
 
 ## CLI Commands
@@ -136,6 +144,30 @@ hal9000 preferences list         # List all preference files
 ```bash
 hal9000 url <URL>                # Process and save a URL
 hal9000 url search <term>        # Search url_library
+```
+
+### Meeting Summaries
+
+```bash
+hal9000 onetoone <transcript>    # Summarize 1:1 and update people profile
+hal9000 collabsummary <transcript> # Summarize team/collab meeting
+```
+
+### JIRA
+
+```bash
+hal9000 jira                     # Interact with JIRA issues
+```
+
+### Services
+
+```bash
+hal9000 services start [name]    # Start all or specific service
+hal9000 services stop [name]     # Stop all or specific service
+hal9000 services status          # Show service health
+hal9000 services restart [name]  # Restart services
+hal9000 services logs [name]     # View service logs
+hal9000 services diagnose        # Diagnose service issues
 ```
 
 ### Scheduler (Daemon)
@@ -197,18 +229,26 @@ HAL can execute these routines:
 
 ## Configuration
 
-### `~/.config/hal9000/config.yaml`
+### `.hal9000/config.yaml`
 
 ```yaml
 library:
   path: "./library"          # Or absolute path
+```
 
-integrations:
-  google:
-    credentials: "~/.config/hal9000/credentials/google.json"
-  jira:
-    server: "https://company.atlassian.net"
-    credentials: "~/.config/hal9000/credentials/jira.json"
+### `.hal9000/credentials/`
+
+Credential files for Floyd watchers:
+
+- `calendar-credentials.json` - Google OAuth2 client credentials
+- `jira-credentials.yaml` - JIRA connection settings
+
+```yaml
+# Example: jira-credentials.yaml
+url: https://yourcompany.atlassian.net
+email: you@company.com
+api_token: your-api-token
+jql: "project = MYPROJECT AND updated >= -7d ORDER BY updated DESC"
 ```
 
 ## First-Time Setup
