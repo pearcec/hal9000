@@ -166,6 +166,34 @@ func TestExpandPath(t *testing.T) {
 	}
 }
 
+func TestCalendarWeekNextOffset(t *testing.T) {
+	// Simulate the week calculation logic from runCalendarWeek
+	now := time.Date(2026, 2, 7, 12, 0, 0, 0, time.Local) // Saturday Feb 7
+
+	startDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	daysSinceSunday := int(startDate.Weekday())
+	startOfWeek := startDate.AddDate(0, 0, -daysSinceSunday)
+
+	// Without "next": should be Sun Feb 1
+	endOfWeek := startOfWeek.AddDate(0, 0, 7)
+	if startOfWeek.Day() != 1 || startOfWeek.Month() != time.February {
+		t.Errorf("current week start = %v, want Feb 1", startOfWeek)
+	}
+	if endOfWeek.Day() != 8 || endOfWeek.Month() != time.February {
+		t.Errorf("current week end = %v, want Feb 8", endOfWeek)
+	}
+
+	// With "next": should be Sun Feb 8
+	nextStart := startOfWeek.AddDate(0, 0, 7)
+	nextEnd := nextStart.AddDate(0, 0, 7)
+	if nextStart.Day() != 8 || nextStart.Month() != time.February {
+		t.Errorf("next week start = %v, want Feb 8", nextStart)
+	}
+	if nextEnd.Day() != 15 || nextEnd.Month() != time.February {
+		t.Errorf("next week end = %v, want Feb 15", nextEnd)
+	}
+}
+
 func TestDateTimeLocalTimezone(t *testing.T) {
 	// Test that all-day events are parsed in local timezone
 	event := CalendarEvent{

@@ -97,9 +97,10 @@ var calendarTodayCmd = &cobra.Command{
 }
 
 var calendarWeekCmd = &cobra.Command{
-	Use:   "week",
+	Use:   "week [next]",
 	Short: "Show this week's events",
-	Long:  `I'll show you what's on your calendar for this week.`,
+	Long:  `I'll show you what's on your calendar for this week. Use "next" to view next week.`,
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runCalendarWeek,
 }
 
@@ -152,8 +153,12 @@ func runCalendarWeek(cmd *cobra.Command, args []string) error {
 	// Find the start of the current week (Sunday)
 	daysSinceSunday := int(startDate.Weekday())
 	startOfWeek := startDate.AddDate(0, 0, -daysSinceSunday)
-	endOfWeek := startOfWeek.AddDate(0, 0, 7)
 
+	if len(args) > 0 && args[0] == "next" {
+		startOfWeek = startOfWeek.AddDate(0, 0, 7)
+	}
+
+	endOfWeek := startOfWeek.AddDate(0, 0, 7)
 	return displayEvents(startOfWeek, endOfWeek)
 }
 
