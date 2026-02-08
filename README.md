@@ -292,6 +292,61 @@ task clean
 ./bin/hal9000 --help
 ```
 
+## Writing a Custom Task
+
+Tasks are Go packages that implement the `tasks.Task` interface. The `helloworld` task in `cmd/hal9000/tasks/helloworld/` is a minimal example:
+
+```go
+package helloworld
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/pearcec/hal9000/cmd/hal9000/tasks"
+)
+
+func init() {
+	tasks.Register(&HelloWorldTask{})
+}
+
+type HelloWorldTask struct{}
+
+func (t *HelloWorldTask) Name() string                          { return "helloworld" }
+func (t *HelloWorldTask) Description() string                   { return "Hello World demo task" }
+func (t *HelloWorldTask) PreferencesKey() string                { return "" }
+func (t *HelloWorldTask) SetupQuestions() []tasks.SetupQuestion { return nil }
+
+func (t *HelloWorldTask) Run(ctx context.Context, opts tasks.RunOptions) (*tasks.Result, error) {
+	msg := fmt.Sprintf("Hello, World! The time is %s.", time.Now().Format("3:04:05 PM"))
+	return &tasks.Result{
+		Success: true,
+		Output:  msg,
+		Message: msg,
+	}, nil
+}
+```
+
+To wire it up:
+
+1. Add a blank import in `cmd/hal9000/main.go`:
+   ```go
+   _ "github.com/pearcec/hal9000/cmd/hal9000/tasks/helloworld"
+   ```
+
+2. Build and run:
+   ```bash
+   task build
+   hal9000 helloworld run
+   ```
+
+3. Optionally schedule it (sends macOS notifications when `notify` is enabled):
+   ```bash
+   hal9000 scheduler set helloworld "*/5 * * * *"
+   hal9000 scheduler reload
+   ```
+
 ## See Also
 
 - [SPEC.md](SPEC.md) - Full technical specification
